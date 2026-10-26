@@ -23,3 +23,28 @@ export function formatRange(minM: number, maxM: number): string {
   if (maxM <= 0) return `${nf.format(Math.abs(maxM))} to ${nf.format(-minM)} m deep`;
   return `${nf.format(-minM)} m deep to ${unit(maxM).n} ${unit(maxM).u} above sea`;
 }
+
+/** Size of a creature or object, e.g. "4 cm", "25 m", "1.2 km". */
+export function formatLength(m: number): string {
+  const trim = (v: number) => nf.format(Number(v.toPrecision(2)));
+  if (m < 0.01) return `${trim(m * 1000)} mm`;
+  if (m < 1) return `${trim(m * 100)} cm`;
+  if (m < 1000) return `${trim(m)} m`;
+  return `${trim(m / 1000)} km`;
+}
+
+const NICE = [1, 2, 5];
+
+/** A round length (1, 2, 5 x 10^n metres) for a scale bar that is at most `maxPx` wide. */
+export function niceScale(mPerPx: number, maxPx: number): { meters: number; px: number; label: string } {
+  const maxM = mPerPx * maxPx;
+  let exp = Math.floor(Math.log10(maxM));
+  let best = 0;
+  for (let e = exp; e >= exp - 1; e--) {
+    for (const n of NICE) {
+      const v = n * Math.pow(10, e);
+      if (v <= maxM && v > best) best = v;
+    }
+  }
+  return { meters: best, px: best / mPerPx, label: formatLength(best) };
+}

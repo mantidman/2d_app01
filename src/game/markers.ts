@@ -6,6 +6,8 @@ export interface Landmark {
   name: string;
   elevM: number;
   source: string;
+  /** Optional short label for the minimap. */
+  short?: string;
 }
 
 export interface Marker {

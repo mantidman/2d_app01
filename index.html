@@ -16,7 +16,13 @@
           <div id="zone"></div>
         </div>
         <button id="book-btn" type="button">Book 0/0</button>
-        <input id="slider" type="range" aria-label="Elevation" />
+        <div id="scalebar"><div id="scalebar-line"></div><span id="scalebar-label"></span></div>
+        <div id="zoom">
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
+        </div>
+        <div id="minimap"><canvas id="minimap-canvas" aria-label="Overview map: click to jump"></canvas></div>
+        <div id="hint">Tap a circle to zoom in. Scroll or pinch to zoom, click the map to travel.</div>
         <div id="card" hidden>
           <div id="card-badge"></div>
           <h2 id="card-name"></h2>

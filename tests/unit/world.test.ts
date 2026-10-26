@@ -1,29 +1,129 @@
 import { describe, expect, it } from 'vitest';
-import { elevToY, yToElev, WORLD_H, TOP_M, BOTTOM_M } from '../../src/game/world';
+import {
+  BOTTOM_M,
+  DEFAULT_M_PER_PX,
+  DOT_PX,
+  MAX_M_PER_PX,
+  MIN_M_PER_PX,
+  TOP_M,
+  focusPx,
+  WORLD_W_M,
+  clampView,
+  elevToScreenY,
+  focusMPerPx,
+  renderMode,
+  screenYToElev,
+  sizeInPx,
+  wrapDx,
+  xToScreenX,
+  zoomAbout,
+} from '../../src/game/world';
 import { zoneAt, backgroundColorAt, silhouetteColorAt, luminance, ZONES } from '../../src/game/zones';
 import { formatElevation, formatRange } from '../../src/game/format';
-import { SPECIES, displaySizeFor, placeInstances } from '../../src/game/species';
+import { SPECIES, placeInstances } from '../../src/game/species';
 
-describe('world axis', () => {
-  it('maps elevation to y and back', () => {
-    expect(elevToY(TOP_M)).toBe(0);
-    expect(elevToY(BOTTOM_M)).toBe(WORLD_H);
-    for (const m of [-10900, -3800, 0, 7290, 12000, 41419, 100000, 408000]) expect(yToElev(elevToY(m))).toBeCloseTo(m, 3);
+const byId = (id: string) => SPECIES.find((s) => s.id === id)!;
+const SIZE = { w: 400, h: 800 };
+const H = SIZE.h;
+
+describe('view maths', () => {
+  const view = { x: 0, elevM: -3800, mPerPx: DEFAULT_M_PER_PX };
+
+  it('puts the view centre in the middle of the screen', () => {
+    expect(elevToScreenY(view, view.elevM, H)).toBe(H / 2);
+    expect(xToScreenX(view, 0, SIZE.w)).toBe(SIZE.w / 2);
   });
 
-  it('is strictly decreasing in elevation and a phone-scrollable size', () => {
-    let prev = -1;
-    for (const m of [600000, 408000, 100000, 12000, 0, -3800, -11000]) {
-      const y = elevToY(m);
-      expect(y).toBeGreaterThan(prev);
-      prev = y;
+  it('maps screen to elevation and back at any zoom', () => {
+    for (const m of [0.001, 1, 50, 600]) {
+      const v = { ...view, mPerPx: m };
+      for (const e of [-3800, -3800 + 100 * m, -3800 - 400 * m]) expect(screenYToElev(v, elevToScreenY(v, e, H), H)).toBeCloseTo(e, 6);
     }
-    expect(WORLD_H).toBeLessThan(40000);
   });
 
-  it('keeps 1 px per metre from airliner height down to the trench', () => {
-    expect(elevToY(-3800) - elevToY(0)).toBeCloseTo(3800);
-    expect(elevToY(0) - elevToY(8849)).toBeCloseTo(8849);
+  it('measures true distances: 100 m apart is 100 px at 1 m/px and 10 px at 10 m/px', () => {
+    expect(elevToScreenY(view, -3900, H) - elevToScreenY(view, -3800, H)).toBeCloseTo(100);
+    expect(elevToScreenY({ ...view, mPerPx: 10 }, -3900, H) - elevToScreenY({ ...view, mPerPx: 10 }, -3800, H)).toBeCloseTo(10);
+  });
+
+  it('wraps the horizontal column the short way round', () => {
+    expect(wrapDx(10)).toBe(10);
+    expect(wrapDx(WORLD_W_M - 10)).toBeCloseTo(-10);
+    expect(wrapDx(-WORLD_W_M + 10)).toBeCloseTo(10);
+  });
+
+  it('zooming about a point keeps that point under the pointer', () => {
+    const before = { x: 120, elevM: -500, mPerPx: 2 };
+    const anchor = { x: 400, y: 200 };
+    const after = zoomAbout(before, 0.25, SIZE, anchor.x, anchor.y);
+    expect(after.mPerPx).toBeCloseTo(0.5);
+    expect(screenYToElev(after, anchor.y, H)).toBeCloseTo(screenYToElev(before, anchor.y, H), 6);
+    const wx = (v: typeof before) => v.x + (anchor.x - SIZE.w / 2) * v.mPerPx;
+    expect(wx(after)).toBeCloseTo(wx(before), 6);
+  });
+
+  it('clamps the view to the world and the zoom range', () => {
+    const v = clampView({ x: 1750, elevM: 9e9, mPerPx: 1e-12 });
+    expect(v.elevM).toBe(TOP_M);
+    expect(v.mPerPx).toBe(MIN_M_PER_PX);
+    expect(v.x).toBeCloseTo(-250);
+    expect(clampView({ x: 0, elevM: -9e9, mPerPx: 1e9 })).toMatchObject({ elevM: BOTTOM_M, mPerPx: MAX_M_PER_PX });
+  });
+
+  it('can zoom out until the whole world fits on a small screen', () => {
+    expect(MAX_M_PER_PX * 560).toBeGreaterThanOrEqual(TOP_M - BOTTOM_M);
+  });
+});
+
+describe('true sizes', () => {
+  it('keeps size relations exact at every zoom', () => {
+    for (const m of [0.0005, 0.1, 1, 40, 600]) {
+      const ratio = sizeInPx(byId('blue-whale').lengthM, m) / sizeInPx(byId('clownfish').lengthM, m);
+      expect(ratio).toBeCloseTo(byId('blue-whale').lengthM / byId('clownfish').lengthM, 9);
+    }
+    expect(byId('blue-whale').lengthM / byId('clownfish').lengthM).toBeGreaterThan(200);
+  });
+
+  it('draws small things as circles and big things as silhouettes', () => {
+    expect(renderMode(sizeInPx(byId('clownfish').lengthM, 1))).toBe('dot');
+    expect(renderMode(sizeInPx(byId('great-white-shark').lengthM, 1))).toBe('dot');
+    expect(renderMode(sizeInPx(byId('blue-whale').lengthM, 1))).toBe('sprite');
+    expect(renderMode(sizeInPx(byId('titanic-wreck').lengthM, 1))).toBe('sprite');
+    expect(renderMode(DOT_PX - 0.01)).toBe('dot');
+    expect(renderMode(DOT_PX)).toBe('sprite');
+  });
+
+  it('sizes the focus zoom by the shorter side so it fits portrait and landscape', () => {
+    expect(focusPx({ w: 400, h: 800 })).toBe(focusPx({ w: 1200, h: 400 }));
+    expect(focusPx({ w: 1200, h: 800 })).toBeLessThan(800);
+  });
+
+  it('turns every circle into a silhouette once you zoom in on it', () => {
+    for (const s of SPECIES) {
+      const m = focusMPerPx(s.lengthM, SIZE);
+      expect(m).toBeGreaterThanOrEqual(MIN_M_PER_PX);
+      expect(m).toBeLessThanOrEqual(MAX_M_PER_PX);
+      expect(renderMode(sizeInPx(s.lengthM, m))).toBe('sprite');
+      expect(sizeInPx(s.lengthM, m)).toBeCloseTo(focusPx(SIZE), 6);
+    }
+  });
+
+  it('matches reference measurements', () => {
+    const ref: Record<string, [number, number]> = {
+      titanic: [269, 269],
+      iss: [100, 120],
+      concorde: [60, 65],
+      hubble: [12, 14],
+      'blue-whale': [20, 30],
+      'great-white-shark': [3.5, 6],
+      clownfish: [0.06, 0.12],
+    };
+    const ids: Record<string, string> = { titanic: 'titanic-wreck' };
+    for (const [k, [lo, hi]] of Object.entries(ref)) {
+      const s = byId(ids[k] ?? k);
+      expect(s.lengthM, s.id).toBeGreaterThanOrEqual(lo);
+      expect(s.lengthM, s.id).toBeLessThanOrEqual(hi);
+    }
   });
 });
 
@@ -70,31 +170,24 @@ describe('formatting', () => {
   });
 });
 
-describe('sizes and placement', () => {
-  it('scales sprites by length with a readable range', () => {
-    const clown = displaySizeFor(0.1);
-    const whale = displaySizeFor(25);
-    expect(clown).toBeGreaterThanOrEqual(56);
-    expect(whale).toBeGreaterThan(clown * 2);
-    expect(displaySizeFor(10000)).toBe(260);
-  });
-
+describe('placement', () => {
   it('places one-of-a-kind objects exactly once', () => {
-    for (const id of ['iss', 'hubble', 'titanic-wreck']) {
-      expect(placeInstances(SPECIES.find((s) => s.id === id)!, 540)).toHaveLength(1);
-    }
+    for (const id of ['iss', 'hubble', 'titanic-wreck']) expect(placeInstances(byId(id))).toHaveLength(1);
   });
 
-  it('places instances deterministically and inside their range', () => {
+  it('places instances deterministically, inside their range and the column', () => {
     for (const sp of SPECIES) {
-      const a = placeInstances(sp, 540);
-      expect(placeInstances(sp, 540)).toEqual(a);
+      const a = placeInstances(sp);
+      expect(placeInstances(sp)).toEqual(a);
       for (const i of a) {
         expect(i.elevM).toBeGreaterThanOrEqual(sp.minM);
         expect(i.elevM).toBeLessThanOrEqual(sp.maxM);
-        expect(i.x).toBeGreaterThanOrEqual(0);
-        expect(i.x).toBeLessThanOrEqual(540);
+        expect(Math.abs(i.x)).toBeLessThanOrEqual(WORLD_W_M / 2);
       }
     }
+  });
+
+  it('drifts slowly, relative to body size', () => {
+    for (const sp of SPECIES) for (const i of placeInstances(sp)) expect(i.speed).toBeLessThanOrEqual(Math.min(3, sp.lengthM * 0.45) + 1e-9);
   });
 });

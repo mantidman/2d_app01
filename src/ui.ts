@@ -1,33 +1,48 @@
 import { SPECIES, Species } from './game/species';
 import { Progress } from './game/progress';
-import { formatElevation, formatRange } from './game/format';
+import { formatElevation, formatLength, formatRange, niceScale } from './game/format';
 import { zoneAt } from './game/zones';
-import { WORLD_H, elevToY, yToElev } from './game/world';
+import { Size, View } from './game/world';
+import { Minimap } from './minimap';
+import type { CritterPoint } from './game/DiveScene';
+
+export interface UiHooks {
+  jumpTo(elevM: number): void;
+  scrubTo(elevM: number): void;
+  focus(key: string): void;
+  zoomBy(factor: number): void;
+}
 
 export interface UiControls {
-  update(elevM: number): void;
+  setView(v: View, size: Size): void;
+  setPoints(p: CritterPoint[]): void;
   showCard(sp: Species, isNew: boolean): void;
   refresh(): void;
-  onSlider(cb: (m: number) => void): void;
+  minimap: Minimap;
 }
 
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const SCALE_MAX_PX = 110;
 
-export function createUi(progress: Progress): UiControls {
+export function createUi(progress: Progress, hooks: UiHooks): UiControls {
   const depth = el('depth');
   const zone = el('zone');
   const bookBtn = el<HTMLButtonElement>('book-btn');
-  const slider = el<HTMLInputElement>('slider');
   const card = el('card');
   const book = el('book');
   const grid = el('book-grid');
-  let sliderCb: (m: number) => void = () => {};
+  const scaleLine = el('scalebar-line');
+  const scaleLabel = el('scalebar-label');
+  const hint = el('hint');
+  const minimap = new Minimap(el<HTMLCanvasElement>('minimap-canvas'), hooks);
   let hideTimer: number | undefined;
+  let points: CritterPoint[] = [];
 
-  // The slider works in world pixels (top = highest) so every zone gets its fair share of the track.
-  slider.min = '0';
-  slider.max = String(WORLD_H);
-  slider.addEventListener('input', () => sliderCb(yToElev(WORLD_H - Number(slider.value))));
+  const dismissHint = () => (hint.hidden = true);
+  for (const ev of ['pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, dismissHint, { once: true, passive: true });
+
+  el('zoom-in').addEventListener('click', () => hooks.zoomBy(0.5));
+  el('zoom-out').addEventListener('click', () => hooks.zoomBy(2));
 
   const sorted = [...SPECIES].sort((a, b) => b.maxM - a.maxM);
 
@@ -50,11 +65,13 @@ export function createUi(progress: Progress): UiControls {
         name.textContent = found ? sp.name : '???';
         const range = document.createElement('div');
         range.className = 'range';
-        range.textContent = found ? formatRange(sp.minM, sp.maxM) : '';
+        range.textContent = found ? `${formatRange(sp.minM, sp.maxM)} · ${formatLength(sp.lengthM)}` : '';
         item.append(icon, name, range);
         return item;
       }),
     );
+    points = points.map((p) => ({ ...p, found: progress.has(p.speciesId) }));
+    minimap.setPoints(points);
   }
 
   bookBtn.addEventListener('click', () => {
@@ -66,24 +83,30 @@ export function createUi(progress: Progress): UiControls {
   refresh();
 
   return {
-    update(elevM) {
-      depth.textContent = formatElevation(elevM);
-      zone.textContent = zoneAt(elevM).name;
-      if (document.activeElement !== slider) slider.value = String(Math.round(WORLD_H - elevToY(elevM)));
+    minimap,
+    setView(v, size) {
+      depth.textContent = formatElevation(v.elevM);
+      zone.textContent = zoneAt(v.elevM).name;
+      const s = niceScale(v.mPerPx, SCALE_MAX_PX);
+      scaleLine.style.width = `${s.px}px`;
+      scaleLabel.textContent = s.label;
+      minimap.setView(v, size);
+    },
+    setPoints(p) {
+      points = p;
+      minimap.setPoints(p);
     },
     showCard(sp, isNew) {
       el('card-badge').textContent = isNew ? 'New discovery' : 'Seen before';
       el('card-name').textContent = sp.name;
-      el('card-range').textContent = formatRange(sp.minM, sp.maxM);
+      el('card-range').textContent = `${formatRange(sp.minM, sp.maxM)} · ${formatLength(sp.lengthM)} long`;
       el('card-fact').textContent = sp.fact;
       card.hidden = false;
+      hint.hidden = true;
       window.clearTimeout(hideTimer);
       hideTimer = window.setTimeout(() => (card.hidden = true), 6000);
       refresh();
     },
     refresh,
-    onSlider(cb) {
-      sliderCb = cb;
-    },
   };
 }
