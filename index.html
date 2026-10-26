@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#000005" />
+    <title>Deep Dive</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="game"></div>
+      <div id="hud">
+        <div id="readout">
+          <div id="depth">Sea level</div>
+          <div id="zone"></div>
+        </div>
+        <button id="book-btn" type="button">Book 0/0</button>
+        <input id="slider" type="range" step="10" aria-label="Elevation" />
+        <div id="card" hidden>
+          <div id="card-badge"></div>
+          <h2 id="card-name"></h2>
+          <div id="card-range"></div>
+          <p id="card-fact"></p>
+        </div>
+      </div>
+      <div id="book" hidden>
+        <div id="book-head"><h1>Collection</h1><button id="book-close" type="button">Close</button></div>
+        <div id="book-grid"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

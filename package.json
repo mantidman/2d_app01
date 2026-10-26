@@ -1,0 +1,27 @@
+{
+  "name": "deep-dive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Explore the vertical world from the sky to the deepest trench, discovering animals by their silhouettes.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:e2e",
+    "sheet": "node scripts/contact-sheet.mjs"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
