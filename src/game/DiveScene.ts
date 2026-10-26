@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { SPECIES, Species, placeInstances, displaySizeFor, Instance } from './species';
 import { Progress } from './progress';
 import { backgroundColorAt, silhouetteColorAt } from './zones';
+import { buildMarkers } from './markers';
+import { formatElevation } from './format';
 import { WORLD_W, WORLD_H, VIEW_H, elevToY, yToElev, clamp } from './world';
 
 export interface SceneHooks {
@@ -31,6 +33,8 @@ export class DiveScene extends Phaser.Scene {
   private snow?: Phaser.GameObjects.Particles.ParticleEmitter;
   private paused = false;
   private lastReported = NaN;
+  /** True once create() has finished; the debug API waits for it so tests never race asset loading. */
+  isReady = false;
 
   constructor() {
     super('dive');
@@ -48,6 +52,7 @@ export class DiveScene extends Phaser.Scene {
 
     this.drawBackground();
     this.drawSurface();
+    this.drawMarkers();
     this.spawnCritters();
     this.createSnow();
 
@@ -82,6 +87,7 @@ export class DiveScene extends Phaser.Scene {
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       this.velocity = clamp(this.velocity + dy * 4, -2400, 2400);
     });
+    this.isReady = true;
   }
 
   update(_t: number, delta: number): void {
@@ -184,6 +190,29 @@ export class DiveScene extends Phaser.Scene {
     const y = elevToY(0);
     g.fillStyle(0xffffff, 0.6);
     for (let x = 0; x < WORLD_W; x += 36) g.fillEllipse(x + 18, y, 36, 5);
+  }
+
+  /** Labelled lines for landmarks (gold) and zone edges (white), so levels are readable while scrolling. */
+  private drawMarkers(): void {
+    const g = this.add.graphics().setDepth(-4);
+    for (const m of buildMarkers()) {
+      const y = elevToY(m.elevM);
+      const landmark = m.kind === 'landmark';
+      g.lineStyle(landmark ? 2 : 1, landmark ? 0xffe08a : 0xffffff, landmark ? 0.7 : 0.35);
+      g.lineBetween(0, y, WORLD_W, y);
+      this.add
+        .text(10, y - 3, `${m.label} · ${formatElevation(m.elevM)}`, {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: landmark ? '15px' : '13px',
+          color: landmark ? '#ffe08a' : '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 3,
+          resolution: 2,
+        })
+        .setOrigin(0, 1)
+        .setAlpha(landmark ? 0.95 : 0.7)
+        .setDepth(-3);
+    }
   }
 
   private spawnCritters(): void {

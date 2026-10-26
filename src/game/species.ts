@@ -18,6 +18,10 @@ export interface Species {
   fact: string;
   source: string;
   license: string;
+  /** Stays put at the centre of the world (e.g. a wreck) instead of drifting. */
+  fixed?: boolean;
+  /** Overrides the rarity-based number of copies, e.g. 1 for one-of-a-kind objects like the ISS. */
+  instances?: number;
 }
 
 export const SPECIES = raw as Species[];
@@ -58,14 +62,14 @@ function hash(s: string): number {
 export function placeInstances(sp: Species, worldW: number): Instance[] {
   const rand = mulberry32(hash(sp.id));
   const size = displaySizeFor(sp.lengthM);
-  const count = sp.domain === 'object' ? 1 : INSTANCE_COUNT[sp.rarity];
+  const count = sp.instances ?? (sp.fixed ? 1 : INSTANCE_COUNT[sp.rarity]);
   const out: Instance[] = [];
   for (let i = 0; i < count; i++) {
     const slice = (sp.maxM - sp.minM) / count;
     const elevM = sp.minM === sp.maxM ? sp.minM : sp.minM + slice * (i + rand());
-    const x = sp.domain === 'object' ? worldW / 2 : size / 2 + rand() * Math.max(0, worldW - size);
+    const x = sp.fixed ? worldW / 2 : size / 2 + rand() * Math.max(0, worldW - size);
     const dir = rand() < 0.5 ? -1 : 1;
-    const speed = sp.domain === 'object' ? 0 : 8 + rand() * 22;
+    const speed = sp.fixed ? 0 : 8 + rand() * 22;
     out.push({ speciesId: sp.id, elevM, x, dir, speed });
   }
   return out;

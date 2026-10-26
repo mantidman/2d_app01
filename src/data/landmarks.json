@@ -1,0 +1,10 @@
+[
+  { "id": "iss-orbit", "name": "ISS orbit", "elevM": 408000, "source": "https://en.wikipedia.org/wiki/International_Space_Station" },
+  { "id": "karman-line", "name": "Kármán line: edge of space", "elevM": 100000, "source": "https://en.wikipedia.org/wiki/K%C3%A1rm%C3%A1n_line" },
+  { "id": "highest-freefall", "name": "Highest skydive (41 km)", "elevM": 41419, "source": "https://en.wikipedia.org/wiki/Alan_Eustace" },
+  { "id": "armstrong-limit", "name": "Armstrong limit: blood boils", "elevM": 18900, "source": "https://en.wikipedia.org/wiki/Armstrong_limit" },
+  { "id": "everest", "name": "Mount Everest summit", "elevM": 8849, "source": "https://en.wikipedia.org/wiki/Mount_Everest" },
+  { "id": "sea-level", "name": "Earth sea level", "elevM": 0, "source": "https://en.wikipedia.org/wiki/Sea_level" },
+  { "id": "average-depth", "name": "Average ocean depth", "elevM": -3688, "source": "https://oceanservice.noaa.gov/facts/oceandepth.html" },
+  { "id": "challenger-deep", "name": "Challenger Deep: deepest point", "elevM": -10935, "source": "https://en.wikipedia.org/wiki/Challenger_Deep" }
+]

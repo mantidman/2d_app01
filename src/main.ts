@@ -36,7 +36,7 @@ ui.onSlider((m) => scene()?.setElevation(m));
 /** Small API for automated tests and agents; not used by the game itself. */
 (window as unknown as { __game: unknown }).__game = {
   speciesIds: SPECIES.map((s) => s.id),
-  ready: () => !!scene()?.cameras?.main,
+  ready: () => !!scene()?.isReady,
   getElevation: () => scene()?.getElevation() ?? NaN,
   setElevation: (m: number) => scene()?.setElevation(m),
   setPaused: (p: boolean) => scene()?.setPaused(p),

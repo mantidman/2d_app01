@@ -30,6 +30,14 @@ describe('species data', () => {
     for (const s of SPECIES.filter((x) => x.domain === 'sky')) expect(s.minM).toBeGreaterThanOrEqual(0);
   });
 
+  it('has aircraft and spacecraft, flying where they really fly', () => {
+    const objects = SPECIES.filter((s) => s.domain === 'object');
+    for (const id of ['passenger-jet', 'concorde', 'iss', 'hubble', 'starlink']) expect(objects.map((o) => o.id)).toContain(id);
+    const iss = SPECIES.find((s) => s.id === 'iss')!;
+    expect(iss.minM).toBeLessThan(408000);
+    expect(iss.maxM).toBeGreaterThan(408000);
+  });
+
   it('has content in every zone', () => {
     for (const z of ZONES) {
       const hit = SPECIES.some((s) => s.maxM >= z.bottomM && s.minM <= z.topM);

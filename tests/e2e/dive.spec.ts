@@ -68,8 +68,35 @@ test('discovery survives a reload', async ({ page }) => {
 
 test('sky and surface views render', async ({ page }) => {
   await start(page);
-  for (const [name, m] of [['sky', 6500], ['surface', 0], ['trench', -10300]] as const) {
+  for (const [name, m] of [['space', 450000], ['karman', 100000], ['stratosphere', 25000], ['sky', 6500], ['surface', 0], ['abyss', -4000], ['trench', -10300]] as const) {
     await diveTo(page, m);
     await page.screenshot({ path: `artifacts/${test.info().project.name}-${name}.png` });
   }
+});
+
+test('the ISS can be found in orbit', async ({ page }) => {
+  await start(page);
+  await diveTo(page, 408000);
+  await expect(page.locator('#depth')).toHaveText('408 km above');
+  await expect(page.locator('#zone')).toHaveText('Space (low Earth orbit)');
+  const pos = await page.evaluate(() => window.__game.screenPositionOf('iss'));
+  expect(pos).not.toBeNull();
+  await page.mouse.click(pos!.x, pos!.y);
+  await expect(page.locator('#card-name')).toHaveText('International Space Station');
+  await expect(page.locator('#card-range')).toHaveText('370 to 460 km above sea');
+});
+
+test('the slider jumps between zones', async ({ page }) => {
+  await start(page);
+  const slider = page.locator('#slider');
+  await slider.evaluate((el: HTMLInputElement) => {
+    el.value = el.max;
+    el.dispatchEvent(new Event('input'));
+  });
+  await expect(page.locator('#zone')).toHaveText('Space (low Earth orbit)');
+  await slider.evaluate((el: HTMLInputElement) => {
+    el.value = '0';
+    el.dispatchEvent(new Event('input'));
+  });
+  await expect(page.locator('#zone')).toHaveText('Hadal zone');
 });

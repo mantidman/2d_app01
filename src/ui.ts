@@ -2,7 +2,7 @@ import { SPECIES, Species } from './game/species';
 import { Progress } from './game/progress';
 import { formatElevation, formatRange } from './game/format';
 import { zoneAt } from './game/zones';
-import { TOP_M, BOTTOM_M } from './game/world';
+import { WORLD_H, elevToY, yToElev } from './game/world';
 
 export interface UiControls {
   update(elevM: number): void;
@@ -24,9 +24,10 @@ export function createUi(progress: Progress): UiControls {
   let sliderCb: (m: number) => void = () => {};
   let hideTimer: number | undefined;
 
-  slider.min = String(BOTTOM_M);
-  slider.max = String(TOP_M);
-  slider.addEventListener('input', () => sliderCb(Number(slider.value)));
+  // The slider works in world pixels (top = highest) so every zone gets its fair share of the track.
+  slider.min = '0';
+  slider.max = String(WORLD_H);
+  slider.addEventListener('input', () => sliderCb(yToElev(WORLD_H - Number(slider.value))));
 
   const sorted = [...SPECIES].sort((a, b) => b.maxM - a.maxM);
 
@@ -68,7 +69,7 @@ export function createUi(progress: Progress): UiControls {
     update(elevM) {
       depth.textContent = formatElevation(elevM);
       zone.textContent = zoneAt(elevM).name;
-      if (document.activeElement !== slider) slider.value = String(Math.round(elevM));
+      if (document.activeElement !== slider) slider.value = String(Math.round(WORLD_H - elevToY(elevM)));
     },
     showCard(sp, isNew) {
       el('card-badge').textContent = isNew ? 'New discovery' : 'Seen before';

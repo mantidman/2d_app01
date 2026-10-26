@@ -8,8 +8,11 @@ export interface Zone {
 }
 
 export const ZONES: Zone[] = [
-  { id: 'high-sky', name: 'High sky', topM: 12000, bottomM: 6000 },
-  { id: 'low-sky', name: 'Low sky', topM: 6000, bottomM: 0 },
+  { id: 'space', name: 'Space (low Earth orbit)', topM: 600000, bottomM: 100000 },
+  { id: 'thermosphere', name: 'Thermosphere', topM: 100000, bottomM: 85000 },
+  { id: 'mesosphere', name: 'Mesosphere', topM: 85000, bottomM: 50000 },
+  { id: 'stratosphere', name: 'Stratosphere', topM: 50000, bottomM: 12000 },
+  { id: 'troposphere', name: 'Troposphere', topM: 12000, bottomM: 0 },
   { id: 'sunlit', name: 'Sunlit zone', topM: 0, bottomM: -200 },
   { id: 'twilight', name: 'Twilight zone', topM: -200, bottomM: -1000 },
   { id: 'midnight', name: 'Midnight zone', topM: -1000, bottomM: -4000 },
@@ -23,6 +26,9 @@ export function zoneAt(elevM: number): Zone {
 
 /** Colour stops from the top of the world to the bottom; the jump at 0 is the sea surface. */
 const STOPS: Array<[number, number]> = [
+  [600000, 0x000003],
+  [100000, 0x01020c],
+  [50000, 0x050a26],
   [12000, 0x0b1033],
   [9000, 0x1c3f7a],
   [4000, 0x4f8fd0],
