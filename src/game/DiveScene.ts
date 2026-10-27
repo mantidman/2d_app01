@@ -5,7 +5,7 @@ import { SILHOUETTE_BOUNDS } from './silhouettes';
 import { backgroundColorAt, silhouetteColorAt } from './zones';
 import { buildMarkers } from './markers';
 import { formatElevation } from './format';
-import { pickLargestNearby } from './nearby';
+import { pickLargestNearby, pickNearest } from './nearby';
 import {
   DOT_PX,
   MAX_M_PER_PX,
@@ -247,6 +247,17 @@ export class DiveScene extends Phaser.Scene {
   focusLargestNearby(): string | null {
     const pick = pickLargestNearby(
       this.critters.map((c) => ({ key: c.key, lengthM: c.species.lengthM, elevM: c.inst.elevM, x: c.inst.x })),
+      this.view,
+    );
+    if (!pick) return null;
+    this.focusOn(pick.key);
+    return pick.key;
+  }
+
+  /** Fly to the nearest one of a species (used by the collection book) and focus it. */
+  focusSpecies(speciesId: string): string | null {
+    const pick = pickNearest(
+      this.critters.filter((c) => c.species.id === speciesId).map((c) => ({ key: c.key, elevM: c.inst.elevM, x: c.inst.x })),
       this.view,
     );
     if (!pick) return null;

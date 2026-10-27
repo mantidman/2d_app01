@@ -13,6 +13,8 @@ export interface UiHooks {
   zoomBy(factor: number): void;
   /** Fly back to the largest object near the camera. */
   fitLargest(): void;
+  /** Fly to the nearest one of a species and focus it. */
+  focusSpecies(speciesId: string): void;
 }
 
 export interface UiControls {
@@ -54,7 +56,13 @@ export function createUi(progress: Progress, hooks: UiHooks): UiControls {
     grid.replaceChildren(
       ...sorted.map((sp) => {
         const found = progress.has(sp.id);
-        const item = document.createElement('div');
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.title = found ? `Fly to the nearest ${sp.name}` : 'Fly to the nearest one';
+        item.addEventListener('click', () => {
+          book.hidden = true;
+          hooks.focusSpecies(sp.id);
+        });
         item.className = 'entry' + (found ? ' found' : '');
         item.dataset.id = sp.id;
         const icon = document.createElement('div');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NEARBY_RADIUS_M, pickLargestNearby } from '../../src/game/nearby';
+import { NEARBY_RADIUS_M, pickLargestNearby, pickNearest } from '../../src/game/nearby';
 import { WORLD_W_M } from '../../src/game/world';
 
 const c = (key: string, lengthM: number, elevM: number, x = 0) => ({ key, lengthM, elevM, x });
@@ -30,5 +30,14 @@ describe('pickLargestNearby', () => {
 
   it('returns null with no items', () => {
     expect(pickLargestNearby([], at)).toBeNull();
+  });
+});
+
+describe('pickNearest', () => {
+  it('picks the closest copy, also across the wrap-around seam', () => {
+    const items = [c('a', 1, -100, 0), c('b', 1, -100, WORLD_W_M / 2 - 10)];
+    expect(pickNearest(items, { x: -WORLD_W_M / 2 + 10, elevM: -100 })?.key).toBe('b');
+    expect(pickNearest(items, { x: 5, elevM: -90 })?.key).toBe('a');
+    expect(pickNearest([], { x: 0, elevM: 0 })).toBeNull();
   });
 });

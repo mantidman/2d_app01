@@ -20,3 +20,9 @@ export function pickLargestNearby<T extends Candidate>(items: T[], at: { x: numb
   if (near.length === 0) return items.reduce<T | null>((best, c) => (!best || dist(c) < dist(best) ? c : best), null);
   return near.reduce((best, c) => (c.lengthM > best.lengthM || (c.lengthM === best.lengthM && dist(c) < dist(best)) ? c : best));
 }
+
+/** The closest item to a spot (horizontal distance wraps around the column); null with no items. */
+export function pickNearest<T extends { elevM: number; x: number }>(items: T[], at: { x: number; elevM: number }): T | null {
+  const dist = (c: T) => Math.hypot(wrapDx(c.x - at.x), c.elevM - at.elevM);
+  return items.reduce<T | null>((best, c) => (!best || dist(c) < dist(best) ? c : best), null);
+}

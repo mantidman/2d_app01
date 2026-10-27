@@ -33,7 +33,8 @@ button { font: inherit; color: var(--ui-fg); background: var(--ui-bg); border: 1
 #book-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 #book-head h1 { margin: 0; font-size: 22px; }
 #book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
-.entry { background: rgba(255,255,255,.05); border-radius: 12px; padding: 10px; text-align: center; }
+.entry { background: rgba(255,255,255,.05); border: 1px solid transparent; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; font: inherit; color: inherit; }
+.entry:hover, .entry:focus-visible { background: rgba(255,255,255,.12); border-color: var(--ui-accent); outline: none; }
 .entry .icon { width: 84px; height: 84px; margin: 0 auto 6px; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
 .entry .name { font-size: 13px; font-weight: 600; }
 .entry .range { font-size: 11px; color: var(--ui-dim); min-height: 14px; }

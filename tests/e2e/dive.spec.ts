@@ -21,6 +21,7 @@ type GameApi = {
   setPaused(p: boolean): void;
   focus(key: string): boolean;
   fitLargest(): string | null;
+  focusSpecies(id: string): string | null;
   labels(): Array<{ key: string; text: string; x: number; y: number }>;
   getDiscovered(): string[];
   critterInfo(id: string): Info | null;
@@ -257,6 +258,26 @@ test('zoom buttons, wheel and drag move the view', async ({ page }) => {
   await page.mouse.up();
   const dragged = await view(page);
   expect(dragged.elevM).toBeGreaterThan(-500 + 60); // dragging down moves the view up
+});
+
+test('book entries are clickable and fly to that creature', async ({ page }) => {
+  await start(page);
+  await page.locator('#book-btn').click();
+  await expect(page.locator('#book')).toBeVisible();
+  await page.locator('.entry[data-id="iss"]').click();
+  await expect(page.locator('#book')).toBeHidden();
+  await expect(page.locator('#card-name')).toHaveText('International Space Station');
+  await expect(page.locator('#zone')).toHaveText('Space (low Earth orbit)');
+
+  // Undiscovered entries ("???") work too, and pick the nearest copy.
+  await page.locator('#book-btn').click();
+  await page.locator('.entry[data-id="anglerfish"]').click();
+  await expect(page.locator('#card-name')).toHaveText('Anglerfish');
+  const v = await view(page);
+  const copies = (await page.evaluate(() => window.__game.critterPoints())).filter((p) => p.speciesId === 'anglerfish');
+  const nearest = copies.reduce((best, p) => (Math.abs(p.elevM - v.elevM) < Math.abs(best.elevM - v.elevM) ? p : best));
+  expect(Math.abs(nearest.elevM - v.elevM)).toBeLessThan(1); // we ended up on one of them
+  await shot(page, 'book-jump');
 });
 
 test('discovery survives a reload', async ({ page }) => {

@@ -17,6 +17,7 @@ const ui = createUi(progress, {
   focus: (key) => scene()?.focusOn(key),
   zoomBy: (f) => scene()?.zoomStep(f),
   fitLargest: () => scene()?.focusLargestNearby(),
+  focusSpecies: (id) => scene()?.focusSpecies(id),
 });
 
 const game = new Phaser.Game({
@@ -61,6 +62,7 @@ const readyTimer = window.setInterval(() => {
   flyTo: (v: Partial<View>) => scene()?.flyTo(v),
   focus: (key: string) => scene()?.focusOn(key),
   fitLargest: () => scene()?.focusLargestNearby() ?? null,
+  focusSpecies: (id: string) => scene()?.focusSpecies(id) ?? null,
   labels: () => scene()?.visibleLabels() ?? [],
   setPaused: (p: boolean) => scene()?.setPaused(p),
   getDiscovered: () => progress.list(),
