@@ -11,6 +11,8 @@ export interface UiHooks {
   scrubTo(elevM: number): void;
   focus(key: string): void;
   zoomBy(factor: number): void;
+  /** Fly back to the largest object near the camera. */
+  fitLargest(): void;
 }
 
 export interface UiControls {
@@ -43,6 +45,7 @@ export function createUi(progress: Progress, hooks: UiHooks): UiControls {
 
   el('zoom-in').addEventListener('click', () => hooks.zoomBy(0.5));
   el('zoom-out').addEventListener('click', () => hooks.zoomBy(2));
+  el('zoom-fit').addEventListener('click', () => hooks.fitLargest());
 
   const sorted = [...SPECIES].sort((a, b) => b.maxM - a.maxM);
 

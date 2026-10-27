@@ -41,6 +41,13 @@ export class Minimap {
   ) {
     this.ctx = canvas.getContext('2d')!;
     new ResizeObserver(() => this.resize()).observe(canvas);
+    // The overview is a fixed map of the whole world: no zooming it, by wheel, pinch, double tap or page zoom.
+    const block = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    for (const type of ['wheel', 'dblclick', 'gesturestart', 'gesturechange', 'contextmenu']) canvas.addEventListener(type, block, { passive: false });
+    canvas.addEventListener('touchmove', block, { passive: false });
     canvas.addEventListener('pointerdown', (e) => this.down(e));
     canvas.addEventListener('pointermove', (e) => this.move(e));
     canvas.addEventListener('pointerup', (e) => this.up(e));

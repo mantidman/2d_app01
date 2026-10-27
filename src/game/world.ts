@@ -16,7 +16,8 @@ export interface Size {
 export const MIN_M_PER_PX = 0.00005;
 /** Zoomed out this far the whole 611 km world fits on any screen at least 560 px tall. */
 export const MAX_M_PER_PX = 1100;
-export const DEFAULT_M_PER_PX = 1;
+/** The opening view is about as wide as a big ship is long. */
+export const DEFAULT_VIEW_WIDTH_M = 300;
 
 /** Things smaller than this on screen are drawn as a circle of this diameter. */
 export const DOT_PX = 14;
@@ -29,6 +30,10 @@ export interface View {
   /** Elevation at the screen centre in metres. */
   elevM: number;
   mPerPx: number;
+}
+
+export function defaultMPerPx(size: Size): number {
+  return clamp(DEFAULT_VIEW_WIDTH_M / size.w, MIN_M_PER_PX, MAX_M_PER_PX);
 }
 
 export function clamp(v: number, lo: number, hi: number): number {

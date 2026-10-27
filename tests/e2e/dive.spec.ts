@@ -20,6 +20,8 @@ type GameApi = {
   setView(v: Partial<View>): void;
   setPaused(p: boolean): void;
   focus(key: string): boolean;
+  fitLargest(): string | null;
+  labels(): Array<{ key: string; text: string; x: number; y: number }>;
   getDiscovered(): string[];
   critterInfo(id: string): Info | null;
   critterPoints(): Array<{ key: string; speciesId: string; elevM: number; x: number }>;
@@ -109,6 +111,51 @@ test('small things are circles; tapping one zooms in to its true size', async ({
   await shot(page, 'zoomed-clownfish');
 });
 
+test('the opening view is at sea level, about a ship wide', async ({ page }) => {
+  await start(page);
+  const v = await view(page);
+  const size = await page.evaluate(() => window.__game.getSize());
+  expect(v.elevM).toBe(0);
+  expect(v.mPerPx * size.w).toBeCloseTo(300, 3);
+  await shot(page, 'opening');
+});
+
+test('circles carry a name tag under them', async ({ page }) => {
+  await start(page);
+  const fish = (await page.evaluate(() => window.__game.critterPoints())).find((p) => p.speciesId === 'snailfish')!;
+  await setView(page, { elevM: fish.elevM, x: fish.x, mPerPx: 4 });
+  const c = await info(page, 'snailfish');
+  expect(c!.mode).toBe('dot');
+  const tag = (await page.evaluate(() => window.__game.labels())).find((l) => l.key === c!.key);
+  expect(tag?.text).toBe('Mariana snailfish');
+  expect(tag!.y).toBeGreaterThan(c!.y); // below the circle
+  expect(Math.abs(tag!.x - c!.x)).toBeLessThan(2); // centred on it
+  await shot(page, 'name-tag');
+
+  // Zoomed right in on it, the tag steps aside: you are looking at the animal itself.
+  await page.evaluate((k) => window.__game.focus(k), c!.key);
+  await expect(page.locator('#card-name')).toHaveText('Mariana snailfish');
+  expect((await page.evaluate(() => window.__game.labels())).some((l) => l.key === c!.key)).toBe(false);
+});
+
+test('the zoom-out button returns to the largest object nearby', async ({ page }) => {
+  await start(page);
+  const clown = (await page.evaluate(() => window.__game.critterPoints())).find((p) => p.speciesId === 'clownfish')!;
+  await setView(page, { elevM: clown.elevM, x: clown.x, mPerPx: 4 });
+  await tapCritter(page, 'clownfish');
+  await expect(page.locator('#card-name')).toHaveText('Clownfish');
+  expect((await view(page)).mPerPx).toBeLessThan(0.001);
+
+  await page.locator('#zoom-fit').click();
+  await expect(page.locator('#card-name')).toHaveText('Blue whale'); // 25 m beats everything else around
+  const size = await page.evaluate(() => window.__game.getSize());
+  const whale = await info(page, 'blue-whale');
+  expect(whale!.mode).toBe('sprite');
+  expect(whale!.sizePx).toBeGreaterThan(Math.min(size.w, size.h) * 0.5);
+  expect((await view(page)).mPerPx).toBeGreaterThan(0.01);
+  await shot(page, 'zoomed-out-to-whale');
+});
+
 test('size relations stay true on screen', async ({ page }) => {
   await start(page);
   // A 25 m whale and a 10 cm clownfish, measured through the real renderer at the same zoom.
@@ -132,20 +179,36 @@ test('the minimap is always visible and jumps to an elevation', async ({ page })
   const canvasBox = (await page.locator('canvas').first().boundingBox())!;
   expect(canvasBox.x + canvasBox.width).toBeLessThanOrEqual(box!.x + 1); // the playfield stops where the map starts
 
+  const startZoom = (await view(page)).mPerPx;
   const p = await page.evaluate(() => window.__game.minimapPointAt(-2500));
   await page.mouse.click(p.x, p.y);
-  await page.waitForFunction(() => {
+  await page.waitForFunction((z) => {
     const v = window.__game.getView();
-    return Math.abs(v.elevM + 2500) < 1 && Math.abs(v.mPerPx - 1) < 1e-6; // flight finished
-  });
+    return Math.abs(v.elevM + 2500) < 1 && Math.abs(v.mPerPx - z) < 1e-9; // flight finished
+  }, startZoom);
   await expect(page.locator('#zone')).toHaveText('Midnight zone');
-  expect((await view(page)).mPerPx).toBeCloseTo(1, 3); // jumping keeps your zoom
+  expect((await view(page)).mPerPx).toBeCloseTo(startZoom, 9); // jumping keeps your zoom
   await shot(page, 'minimap-jump');
 
   const top = await page.evaluate(() => window.__game.minimapPointAt(408000));
   await page.mouse.click(top.x - 20, top.y); // empty spot left of dots
   await page.waitForFunction(() => window.__game.getView().elevM > 300000);
   await expect(page.locator('#zone')).toHaveText('Space (low Earth orbit)');
+});
+
+test('the minimap itself can not be zoomed, only the world view', async ({ page }) => {
+  await start(page);
+  await setView(page, { elevM: -2500, mPerPx: 1 });
+  const before = await page.evaluate(() => window.__game.minimapPointAt(-2500));
+  const box = (await page.locator('#minimap').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -900);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(300);
+  expect((await view(page)).mPerPx).toBe(1); // wheel over the map does not zoom the world either
+  const after = await page.evaluate(() => window.__game.minimapPointAt(-2500));
+  expect(after).toEqual(before); // the strip keeps its scale
+  expect(await page.locator('#minimap').boundingBox()).toEqual(box);
 });
 
 test('clicking a dot on the minimap flies to that creature', async ({ page }) => {

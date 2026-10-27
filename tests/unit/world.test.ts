@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOTTOM_M,
-  DEFAULT_M_PER_PX,
+  DEFAULT_VIEW_WIDTH_M,
   DOT_PX,
   MAX_M_PER_PX,
   MIN_M_PER_PX,
@@ -9,6 +9,7 @@ import {
   focusPx,
   WORLD_W_M,
   clampView,
+  defaultMPerPx,
   elevToScreenY,
   focusMPerPx,
   renderMode,
@@ -27,7 +28,7 @@ const SIZE = { w: 400, h: 800 };
 const H = SIZE.h;
 
 describe('view maths', () => {
-  const view = { x: 0, elevM: -3800, mPerPx: DEFAULT_M_PER_PX };
+  const view = { x: 0, elevM: -3800, mPerPx: 1 };
 
   it('puts the view centre in the middle of the screen', () => {
     expect(elevToScreenY(view, view.elevM, H)).toBe(H / 2);
@@ -72,6 +73,19 @@ describe('view maths', () => {
 
   it('can zoom out until the whole world fits on a small screen', () => {
     expect(MAX_M_PER_PX * 560).toBeGreaterThanOrEqual(TOP_M - BOTTOM_M);
+  });
+});
+
+describe('opening view', () => {
+  it('is about as wide as a big ship, whatever the screen', () => {
+    for (const w of [289, 393, 1176, 2400]) expect(defaultMPerPx({ w, h: 800 }) * w).toBeCloseTo(DEFAULT_VIEW_WIDTH_M, 6);
+  });
+
+  it('shows a 3 m albatross as a circle and a 25 m whale as a silhouette on a phone', () => {
+    const m = defaultMPerPx({ w: 289, h: 700 });
+    expect(renderMode(sizeInPx(byId('albatross').lengthM, m))).toBe('dot');
+    expect(renderMode(sizeInPx(byId('blue-whale').lengthM, m))).toBe('sprite');
+    expect(sizeInPx(byId('titanic-wreck').lengthM, m)).toBeGreaterThan(250); // a ship fills the width
   });
 });
 

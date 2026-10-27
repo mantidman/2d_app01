@@ -16,6 +16,7 @@ const ui = createUi(progress, {
   scrubTo: (m) => scene()?.setViewNow({ elevM: m }),
   focus: (key) => scene()?.focusOn(key),
   zoomBy: (f) => scene()?.zoomStep(f),
+  fitLargest: () => scene()?.focusLargestNearby(),
 });
 
 const game = new Phaser.Game({
@@ -59,6 +60,8 @@ const readyTimer = window.setInterval(() => {
   setElevation: (m: number) => scene()?.setViewNow({ elevM: m }),
   flyTo: (v: Partial<View>) => scene()?.flyTo(v),
   focus: (key: string) => scene()?.focusOn(key),
+  fitLargest: () => scene()?.focusLargestNearby() ?? null,
+  labels: () => scene()?.visibleLabels() ?? [],
   setPaused: (p: boolean) => scene()?.setPaused(p),
   getDiscovered: () => progress.list(),
   critterInfo: (id: string) => scene()?.critterInfo(id) ?? null,

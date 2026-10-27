@@ -5,8 +5,8 @@ import { SILHOUETTE_BOUNDS } from './silhouettes';
 import { backgroundColorAt, silhouetteColorAt } from './zones';
 import { buildMarkers } from './markers';
 import { formatElevation } from './format';
+import { pickLargestNearby } from './nearby';
 import {
-  DEFAULT_M_PER_PX,
   DOT_PX,
   MAX_M_PER_PX,
   MIN_M_PER_PX,
@@ -14,6 +14,7 @@ import {
   View,
   clamp,
   clampView,
+  defaultMPerPx,
   elevToScreenY,
   focusMPerPx,
   focusPx,
@@ -54,6 +55,7 @@ interface Critter {
   key: string;
   species: Species;
   inst: Instance;
+  label: Phaser.GameObjects.Text;
   sprite: Phaser.GameObjects.Image;
   dot: Phaser.GameObjects.Image;
   halo: Phaser.GameObjects.Image;
@@ -86,13 +88,18 @@ const KEY_ZOOM_PER_S = 1.8;
 const MIN_HIT_PX = 18;
 const STRIPS = 96;
 const LABEL_GAP_PX = 22;
+/** Names are shown beside circles and small silhouettes (set false to keep undiscovered creatures secret). */
+const SHOW_NAMES = true;
+const LABEL_H = 18;
+/** A silhouette bigger than this share of the shorter screen side needs no label: you are looking right at it. */
+const LABEL_MAX_FRACTION = 0.4;
 
 const hexToInt = (hex: string) => Phaser.Display.Color.HexStringToColor(hex).color;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 export class DiveScene extends Phaser.Scene {
   private hooks!: SceneHooks;
-  private view: View = { x: 0, elevM: 0, mPerPx: DEFAULT_M_PER_PX };
+  private view: View = { x: 0, elevM: 0, mPerPx: 1 };
   private critters: Critter[] = [];
   private labels: MarkerLabel[] = [];
   private bg!: Phaser.GameObjects.Graphics;
@@ -119,6 +126,7 @@ export class DiveScene extends Phaser.Scene {
 
   create(): void {
     this.hooks = this.registry.get('hooks') as SceneHooks;
+    this.view.mPerPx = defaultMPerPx(this.size);
     this.bg = this.add.graphics().setDepth(-10);
     this.lines = this.add.graphics().setDepth(-4);
     this.makeTextures();
@@ -235,6 +243,23 @@ export class DiveScene extends Phaser.Scene {
     this.startFly(() => clampView({ x: follow ? this.view.x + wrapDx(follow.inst.x - this.view.x) : x, elevM: follow ? follow.inst.elevM : elevM, mPerPx }));
   }
 
+  /** Fly back to the largest thing nearby and frame it: the way out after zooming in on something small. */
+  focusLargestNearby(): string | null {
+    const pick = pickLargestNearby(
+      this.critters.map((c) => ({ key: c.key, lengthM: c.species.lengthM, elevM: c.inst.elevM, x: c.inst.x })),
+      this.view,
+    );
+    if (!pick) return null;
+    this.focusOn(pick.key);
+    return pick.key;
+  }
+
+  /** Names currently drawn on screen, with page coordinates (used by tests). */
+  visibleLabels(): Array<{ key: string; text: string; x: number; y: number }> {
+    const rect = this.game.canvas.getBoundingClientRect();
+    return this.critters.filter((c) => c.label.visible).map((c) => ({ key: c.key, text: c.label.text, x: rect.left + c.label.x, y: rect.top + c.label.y }));
+  }
+
   /** Fly to a creature, zoom in so it fills the screen, and discover it on arrival. */
   focusOn(key: string): boolean {
     const c = this.critters.find((x) => x.key === key);
@@ -347,8 +372,10 @@ export class DiveScene extends Phaser.Scene {
     this.cancelMotion();
     this.following = c;
     const wanted = focusMPerPx(c.species.lengthM, this.size);
-    // Already big enough on screen: keep the zoom, just centre and discover.
-    const keep = sizeInPx(c.species.lengthM, this.view.mPerPx) >= focusPx(this.size) * 0.6;
+    // Already about the right size on screen: keep the zoom, just centre and discover.
+    // Much too big (we are zoomed in on something tiny) or too small: change the zoom to frame it.
+    const ratio = sizeInPx(c.species.lengthM, this.view.mPerPx) / focusPx(this.size);
+    const keep = ratio >= 0.6 && ratio <= 2;
     const mPerPx = keep ? this.view.mPerPx : wanted;
     this.startFly(
       () => clampView({ x: this.view.x + wrapDx(c.inst.x - this.view.x), elevM: c.inst.elevM, mPerPx }),
@@ -409,7 +436,30 @@ export class DiveScene extends Phaser.Scene {
         c.halo.setPosition(c.sx, c.sy);
       }
     }
+    this.placeLabels(w, h);
     this.snow?.setVisible(v.elevM < -60);
+  }
+
+  /** Name tags under circles and small silhouettes; bigger things win when tags would overlap. */
+  private placeLabels(w: number, h: number): void {
+    const bigPx = Math.min(w, h) * LABEL_MAX_FRACTION;
+    const placed: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
+    const shown = this.critters
+      .filter((c) => SHOW_NAMES && (c.sprite.visible || c.dot.visible) && c.sizePx < bigPx)
+      .sort((a, b) => b.species.lengthM - a.species.lengthM);
+    const keep = new Set<Critter>();
+    for (const c of shown) {
+      const half = c.label.width / 2;
+      const below = c.mode === 'dot' ? DOT_PX / 2 + 8 : ((SILHOUETTE_BOUNDS[c.species.silhouette].height / SILHOUETTE_BOUNDS[c.species.silhouette].longest) * c.sizePx) / 2 + 4;
+      const y0 = c.sy + below;
+      const box = { x0: c.sx - half, x1: c.sx + half, y0, y1: y0 + LABEL_H };
+      const onScreen = box.x1 > 0 && box.x0 < w && box.y1 > 0 && box.y0 < h;
+      if (!onScreen || placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0)) continue;
+      placed.push(box);
+      keep.add(c);
+      c.label.setPosition(c.sx, y0);
+    }
+    for (const c of this.critters) c.label.setVisible(keep.has(c));
   }
 
   private drawBackground(w: number, h: number): void {
@@ -439,7 +489,7 @@ export class DiveScene extends Phaser.Scene {
       m.text.setVisible(free);
       if (free) {
         taken.push(y);
-        m.text.setPosition(10, y - 3);
+        m.text.setPosition(w - 8, y - 3);
       }
     }
   }
@@ -448,7 +498,7 @@ export class DiveScene extends Phaser.Scene {
     for (const m of buildMarkers()) {
       const landmark = m.kind === 'landmark';
       const text = this.add
-        .text(10, 0, `${m.label} · ${formatElevation(m.elevM)}`, {
+        .text(0, 0, m.elevM === 0 ? m.label : `${m.label} · ${formatElevation(m.elevM)}`, {
           fontFamily: 'system-ui, sans-serif',
           fontSize: landmark ? '15px' : '13px',
           color: landmark ? '#ffe08a' : '#ffffff',
@@ -456,7 +506,7 @@ export class DiveScene extends Phaser.Scene {
           strokeThickness: 3,
           resolution: 2,
         })
-        .setOrigin(0, 1)
+        .setOrigin(1, 1)
         .setAlpha(landmark ? 0.95 : 0.7)
         .setDepth(-3)
         .setVisible(false);
@@ -484,10 +534,23 @@ export class DiveScene extends Phaser.Scene {
         const sprite = this.add.image(0, 0, sp.id).setOrigin(b.cx / 256, b.cy / 256).setVisible(false);
         const halo = this.add.image(0, 0, 'halo').setDisplaySize(DOT_PX * 2.6, DOT_PX * 2.6).setVisible(false).setAlpha(0.8);
         const dot = this.add.image(0, 0, 'disc').setDisplaySize(DOT_PX, DOT_PX).setVisible(false);
+        const label = this.add
+          .text(0, 0, sp.name, {
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: '13px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3,
+            resolution: 2,
+          })
+          .setOrigin(0.5, 0)
+          .setDepth(2)
+          .setVisible(false);
         const c: Critter = {
           key: `${sp.id}#${i}`,
           species: sp,
           inst,
+          label,
           sprite,
           dot,
           halo,
