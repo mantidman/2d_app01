@@ -1,7 +1,7 @@
 import { backgroundColorAt } from './game/zones';
 import { LANDMARKS } from './game/markers';
 import { elevToFrac, fracToElev } from './game/minimap-math';
-import { Size, View, screenYToElev } from './game/world';
+import { BOTTOM_M, Size, View, screenYToElev } from './game/world';
 import type { CritterPoint } from './game/DiveScene';
 
 export interface MinimapHooks {
@@ -168,6 +168,7 @@ export class Minimap {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (const l of LANDMARKS) {
+      if (l.elevM < BOTTOM_M) continue; // the minimap only covers the trench to low Earth orbit
       const y = this.yOf(elevToFrac(l.elevM));
       ctx.fillStyle = '#ffe08a';
       ctx.fillRect(STRIP_X - 5, y - 0.5, sw + 5, 1);

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   BOTTOM_M,
   DEFAULT_VIEW_WIDTH_M,
+  EARTH_RADIUS_M,
+  PULL_BACK_FROM_M_PER_PX,
+  wholeEarthMPerPx,
   DOT_PX,
   MAX_M_PER_PX,
   MIN_M_PER_PX,
@@ -65,14 +68,45 @@ describe('view maths', () => {
 
   it('clamps the view to the world and the zoom range', () => {
     const v = clampView({ x: 1750, elevM: 9e9, mPerPx: 1e-12 });
-    expect(v.elevM).toBe(TOP_M);
+    expect(v.elevM).toBeCloseTo(TOP_M, 1); // a hair past the top at the finest zoom
     expect(v.mPerPx).toBe(MIN_M_PER_PX);
     expect(v.x).toBeCloseTo(-250);
-    expect(clampView({ x: 0, elevM: -9e9, mPerPx: 1e9 })).toMatchObject({ elevM: BOTTOM_M, mPerPx: MAX_M_PER_PX });
+    const out = clampView({ x: 0, elevM: -9e9, mPerPx: 1e9 });
+    expect(out.mPerPx).toBe(MAX_M_PER_PX);
+    expect(out.elevM).toBe(-EARTH_RADIUS_M); // zoomed out you may look down to the planet's centre
+    expect(clampView({ x: 0, elevM: -9e9, mPerPx: 1 }).elevM).toBeCloseTo(BOTTOM_M - 350, 6); // zoomed in you may not
   });
 
-  it('can zoom out until the whole world fits on a small screen', () => {
-    expect(MAX_M_PER_PX * 560).toBeGreaterThanOrEqual(TOP_M - BOTTOM_M);
+  it('can zoom out until the whole Earth fits on a phone-sized screen', () => {
+    expect(MAX_M_PER_PX * 289).toBeGreaterThanOrEqual(2 * EARTH_RADIUS_M);
+    expect(wholeEarthMPerPx({ w: 289, h: 700 })).toBeLessThanOrEqual(MAX_M_PER_PX);
+    expect(2 * EARTH_RADIUS_M / wholeEarthMPerPx({ w: 289, h: 700 })).toBeCloseTo(0.9 * 289, 6);
+  });
+
+  it('keeps the world as it was until you zoom far out, then pulls back towards the Earth\'s centre', () => {
+    const size = { w: 400, h: 800 };
+    const near = { x: 0, elevM: 100, mPerPx: 1 };
+    const small = zoomAbout(near, 10, size); // 10 m/px: no pull-back
+    expect(small.mPerPx).toBe(10);
+    expect(small.elevM).toBeCloseTo(100, 6); // plain zoom about the screen centre keeps the centre where it is
+    let v = { x: 0, elevM: 0, mPerPx: PULL_BACK_FROM_M_PER_PX };
+    let prev = v.elevM;
+    while (v.mPerPx < MAX_M_PER_PX) {
+      v = zoomAbout(v, 1.3, size);
+      expect(v.elevM).toBeLessThanOrEqual(prev); // keeps sinking towards the centre
+      prev = v.elevM;
+    }
+    expect(v.mPerPx).toBe(MAX_M_PER_PX);
+    expect(v.elevM).toBeCloseTo(-EARTH_RADIUS_M, -2); // dead centre at the widest zoom
+  });
+
+  it('does not pull back when zooming in, so you can dive back down at a point on the surface', () => {
+    const size = { w: 400, h: 800 };
+    const far = { x: 0, elevM: -EARTH_RADIUS_M, mPerPx: 40000 };
+    const anchor = { x: 200, y: 100 }; // a point near the top of the disc
+    const closer = zoomAbout(far, 0.5, size, anchor.x, anchor.y);
+    expect(closer.elevM).toBeGreaterThan(far.elevM);
+    expect(screenYToElev(closer, anchor.y, size.h)).toBeCloseTo(screenYToElev(far, anchor.y, size.h), 3);
   });
 });
 
@@ -152,7 +186,12 @@ describe('zones', () => {
     expect(zoneAt(-50).id).toBe('sunlit');
     expect(zoneAt(-3800).id).toBe('midnight');
     expect(zoneAt(-10900).id).toBe('hadal');
-    expect(ZONES).toHaveLength(10);
+    expect(zoneAt(-20000).id).toBe('crust');
+    expect(zoneAt(-1_000_000).id).toBe('mantle');
+    expect(zoneAt(-4_000_000).id).toBe('outer-core');
+    expect(zoneAt(-6_000_000).id).toBe('inner-core');
+    expect(zoneAt(-EARTH_RADIUS_M).id).toBe('inner-core');
+    expect(ZONES).toHaveLength(14);
   });
 
   it('gets darker with depth and jumps at the surface', () => {
@@ -178,6 +217,9 @@ describe('formatting', () => {
     expect(formatRange(100, 11300)).toBe('100 to 11,300 m above sea');
     expect(formatRange(-3800, -3800)).toBe('3,800 m deep');
     expect(formatElevation(408000)).toBe('408 km above');
+    expect(formatElevation(-EARTH_RADIUS_M)).toBe('6,371 km deep');
+    expect(formatElevation(-2_891_000)).toBe('2,891 km deep');
+    expect(formatElevation(-10935)).toBe('10,935 m deep');
     expect(formatElevation(11300)).toBe('11,300 m above');
     expect(formatRange(370000, 460000)).toBe('370 to 460 km above sea');
     expect(formatRange(0, 35000)).toBe('0 m to 35 km above sea');

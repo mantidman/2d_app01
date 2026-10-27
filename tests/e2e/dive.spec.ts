@@ -21,6 +21,8 @@ type GameApi = {
   setPaused(p: boolean): void;
   focus(key: string): boolean;
   fitLargest(): string | null;
+  showEarth(): void;
+  earthInfo(): { mode: 'flat' | 'arc' | 'circle'; seaPx: number; sagPx: number; cx: number; cy: number };
   focusSpecies(id: string): string | null;
   labels(): Array<{ key: string; text: string; x: number; y: number }>;
   getDiscovered(): string[];
@@ -303,4 +305,75 @@ test('views from space to the trench render', async ({ page }) => {
     await setView(page, v);
     await shot(page, name);
   }
+});
+
+const EARTH_R = 6_371_000;
+
+test('the Earth curves into view as you zoom out', async ({ page }) => {
+  await start(page);
+  const modes: Array<[number, string]> = [
+    [1, 'flat'],
+    [400, 'arc'],
+  ];
+  for (const [m, mode] of modes) {
+    await setView(page, { elevM: 0, mPerPx: m });
+    expect((await page.evaluate(() => window.__game.earthInfo())).mode, `${m} m/px`).toBe(mode);
+    await shot(page, `curve-${m}`);
+  }
+  await setView(page, { elevM: 2000, mPerPx: 1500 });
+  const mid = await page.evaluate(() => window.__game.earthInfo());
+  expect(mid.mode).not.toBe('flat');
+  expect(mid.sagPx).toBeGreaterThan(2); // the horizon visibly bends
+  await shot(page, 'curve-1500');
+
+  await setView(page, { elevM: -EARTH_R, mPerPx: 20000 });
+  const ball = await page.evaluate(() => window.__game.earthInfo());
+  expect(ball.mode).toBe('circle');
+  expect(ball.seaPx).toBeCloseTo(EARTH_R / 20000, 6); // 318.55 px: the true radius at this scale
+  await expect(page.locator('#depth')).toHaveText('6,371 km deep');
+  await expect(page.locator('#zone')).toHaveText('Inner core');
+  await expect(page.locator('#scalebar-label')).toHaveText('2,000 km');
+  expect(await page.evaluate(() => window.__game.labels())).toEqual([]); // no creature tags piling up at planet scale
+  await shot(page, 'earth-centre');
+});
+
+test('zooming out with the wheel pulls back until the whole planet is in view', async ({ page }) => {
+  await start(page);
+  const canvas = (await page.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+  let last = (await view(page)).mPerPx;
+  for (let i = 0; i < 30 && last < 59000; i++) {
+    await page.mouse.wheel(0, 1500);
+    await page.waitForFunction((l) => window.__game.getView().mPerPx > l, last);
+    last = (await view(page)).mPerPx;
+  }
+  const v = await view(page);
+  expect(v.mPerPx).toBeGreaterThan(59000);
+  expect(v.elevM).toBeCloseTo(-EARTH_R, -3); // eased all the way to the centre of the planet
+  const info = await page.evaluate(() => window.__game.earthInfo());
+  const size = await page.evaluate(() => window.__game.getSize());
+  expect(info.mode).toBe('circle');
+  expect(info.seaPx * 2).toBeLessThan(Math.max(size.w, size.h)); // the whole ball fits
+  await shot(page, 'earth-whole-wheel');
+});
+
+test('the Earth button shows the whole planet and the way back down works', async ({ page }) => {
+  await start(page);
+  await page.locator('#zoom-earth').click();
+  await page.waitForFunction(() => {
+    const v = window.__game.getView();
+    const s = window.__game.getSize();
+    const target = (2 * 6371000) / (0.9 * Math.min(s.w, s.h)); // flight finished: exactly the whole-Earth zoom
+    return Math.abs(v.mPerPx - target) < 1e-6 && Math.abs(v.elevM + 6371000) < 1e-3;
+  });
+  const info = await page.evaluate(() => window.__game.earthInfo());
+  const size = await page.evaluate(() => window.__game.getSize());
+  expect(info.mode).toBe('circle');
+  expect(info.seaPx * 2).toBeCloseTo(0.9 * Math.min(size.w, size.h), 0); // 90% of the shorter side
+  await shot(page, 'earth-whole-button');
+
+  // Back to the surface: fly to the nearest creature, then to the largest one around it.
+  await page.locator('#zoom-fit').click();
+  await expect(page.locator('#card-name')).toBeVisible();
+  expect((await view(page)).mPerPx).toBeLessThan(5);
 });

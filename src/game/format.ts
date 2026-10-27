@@ -3,7 +3,7 @@ const KM_FROM_M = 20000;
 
 function unit(m: number): { n: string; u: 'm' | 'km' } {
   const a = Math.abs(Math.round(m));
-  return m >= KM_FROM_M ? { n: nf.format(Math.round(m / 1000)), u: 'km' } : { n: nf.format(a), u: 'm' };
+  return a >= KM_FROM_M ? { n: nf.format(Math.round(a / 1000)), u: 'km' } : { n: nf.format(a), u: 'm' };
 }
 
 export function formatElevation(m: number): string {

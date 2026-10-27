@@ -1,6 +1,6 @@
 # Deep Dive
 
-A 2D explorer game: one vertical axis from low Earth orbit (+600 km) down to the deepest trench (-11 km).
+A 2D explorer game: from low Earth orbit (+600 km) down through the sea (-11 km) and, zoomed out, the whole planet with its real radius (6,371 km) down to the Earth's centre.
 Animals and objects appear as silhouettes at their real elevation range; tap one to discover it and fill the collection book.
 
 Stack: Phaser 3 + TypeScript + Vite. Tests: Vitest (unit/data) and Playwright (e2e, headless, desktop + Pixel 5 profiles).
@@ -15,9 +15,12 @@ Stack: Phaser 3 + TypeScript + Vite. Tests: Vitest (unit/data) and Playwright (e
 ## Conventions
 - Elevation is metres, 0 = sea level, negative = below. Sea animals must have `maxM <= 0`, sky animals `minM >= 0`. Aircraft, balloons, meteors, satellites and wrecks use `domain: "object"`.
 - Everything is drawn at true scale from one continuous zoom (`View.mPerPx`, metres per CSS pixel, from 0.05 mm/px to 1,100 m/px). There is no non-linear world axis any more; only the minimap is compressed on purpose (`src/game/minimap-math.ts`). Convert with `elevToScreenY`/`screenYToElev`/`xToScreenX` (they take the playfield size; it follows the window, never assume 540x960).
+- The world is a real sphere: `EARTH_RADIUS_M` = 6,371,000 m (IUGG mean radius; flattening ignored, equatorial 6,378 km / polar 6,357 km). Every elevation is a circle of radius R+e around the centre at elevation -R. Zoom range is 0.05 mm/px to 60,000 m/px; the whole planet fits at about 20,000 m/px on a desktop and 49,000 m/px on a phone (`wholeEarthMPerPx`). Zooming out past 5,000 m/px eases the camera towards the centre (`zoomAbout`) so the planet comes into view; the globe button flies there directly.
+- Earth geometry lives in `src/game/earth.ts` (pure): `flat` (curve < 0.25 px), `arc` (visibly bent) and `circle` modes; the background is ONE canvas gradient (`backgroundGradient`) built from the colour table in `zones.ts`, repainted only when the view changes. Never paint overlapping full-width bands or discs for backgrounds: overdraw made frames 20x slower in software GL and would hurt phones. Landmark and zone lines are drawn as arcs/circles.
+- Interior zones (crust to 35 km, mantle to 2,891 km, outer core to 5,150 km, inner core to the centre) are in `ZONES` and the colour table; they hold no creatures (the species test only covers zones above the trench).
 - `lengthM` in `species.json` is the real size of the LONGEST SIDE OF THE DRAWN SILHOUETTE (body length for a fish, wingspan for a bird seen from below, flipper span for a top-view turtle). The engine measures each SVG's bounds (`src/game/svgBounds.ts`) and scales it so that side is exactly `lengthM`. Draw silhouettes with correct proportions and put a sourced real size in `lengthM`.
 - Anything under `DOT_PX` (14 px) on screen is drawn as a circle; tapping it (or a dot on the minimap) flies the camera there, zooms until it fills 55% of the shorter screen side, discovers it and follows it. Never rescale sprites for visibility.
-- The opening view is at sea level and about 300 m wide (`defaultMPerPx`), roughly a big ship's length. Circles and small silhouettes carry their name as a tag (`SHOW_NAMES` in `DiveScene.ts`; tags of bigger things win when they overlap, and the tag steps aside once a creature fills the screen). The zoom-out button (`#zoom-fit`) flies back to the largest object within 1.5 km (`src/game/nearby.ts`).
+- The opening view is at sea level and about 300 m wide (`defaultMPerPx`), roughly a big ship's length. Circles and small silhouettes carry their name as a tag (`SHOW_NAMES` in `DiveScene.ts`; only at 12 m/px or finer, where the 1 km column is wide enough for creatures to be told apart; tags of bigger things win when they overlap, and the tag steps aside once a creature fills the screen). The zoom-out button (`#zoom-fit`) flies back to the largest object within 1.5 km (`src/game/nearby.ts`).
 - Book entries are buttons: clicking one closes the book and flies to the nearest copy of that species (`focusSpecies`), also for undiscovered "???" entries.
 - The minimap is a fixed overview and must never zoom (it blocks wheel/pinch/double-tap); only the world view zooms.
 - The world is a 1,000 m wide column that wraps horizontally (`WORLD_W_M`); creatures drift slowly relative to their size.
@@ -27,7 +30,7 @@ Stack: Phaser 3 + TypeScript + Vite. Tests: Vitest (unit/data) and Playwright (e
 - Content is data: add a species by adding an entry to `src/data/species.json` and one SVG to `public/silhouettes/`. No engine changes needed.
 - Silhouette SVG rules (enforced by tests): viewBox `0 0 256 256`, exactly one `<path>`, `fill="#fff"` (the engine tints it), side view facing right (top view for turtles/birds), coordinates within 0-256, no text/images/scripts.
 - Every species needs a `source` URL, a `license`, a fact of at least 20 chars, and approximate-but-defensible ranges. Do not invent data.
-- UI tests use the debug API `window.__game` (see `src/main.ts`): `setView`, `getView`, `getSize`, `setPaused`, `critterInfo(id)` (on-screen position, size in px, dot or sprite), `critterPoints()`, `focus(key)`, `minimapPointOf(key)`, `minimapPointAt(elevM)`, `getDiscovered`. Keys look like `iss#0`.
+- UI tests use the debug API `window.__game` (see `src/main.ts`): `setView`, `getView`, `getSize`, `setPaused`, `critterInfo(id)` (on-screen position, size in px, dot or sprite), `critterPoints()`, `focus(key)`, `minimapPointOf(key)`, `minimapPointAt(elevM)`, `getDiscovered`, `earthInfo()` (mode, sea-level radius in px, sag, per-frame draw ms), `showEarth()`, `labels()`. Keys look like `iss#0`.
 - Add an e2e test for every new player-facing behaviour, and look at the screenshots in `artifacts/`.
 
 ## Roadmap

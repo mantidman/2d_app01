@@ -39,7 +39,8 @@ describe('species data', () => {
   });
 
   it('has content in every zone', () => {
-    for (const z of ZONES) {
+    for (const z of ZONES.filter((x) => x.topM > BOTTOM_M)) {
+      // (the zones inside the planet below the trench hold no creatures)
       const hit = SPECIES.some((s) => s.maxM >= z.bottomM && s.minM <= z.topM);
       expect(hit, `no species in ${z.name}`).toBe(true);
     }

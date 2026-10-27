@@ -13,6 +13,8 @@ export interface UiHooks {
   zoomBy(factor: number): void;
   /** Fly back to the largest object near the camera. */
   fitLargest(): void;
+  /** Fly out to see the whole planet. */
+  showEarth(): void;
   /** Fly to the nearest one of a species and focus it. */
   focusSpecies(speciesId: string): void;
 }
@@ -48,6 +50,7 @@ export function createUi(progress: Progress, hooks: UiHooks): UiControls {
   el('zoom-in').addEventListener('click', () => hooks.zoomBy(0.5));
   el('zoom-out').addEventListener('click', () => hooks.zoomBy(2));
   el('zoom-fit').addEventListener('click', () => hooks.fitLargest());
+  el('zoom-earth').addEventListener('click', () => hooks.showEarth());
 
   const sorted = [...SPECIES].sort((a, b) => b.maxM - a.maxM);
 

@@ -1,4 +1,4 @@
-import { clamp } from './world';
+import { EARTH_RADIUS_M, clamp } from './world';
 
 export interface Zone {
   id: string;
@@ -18,6 +18,11 @@ export const ZONES: Zone[] = [
   { id: 'midnight', name: 'Midnight zone', topM: -1000, bottomM: -4000 },
   { id: 'abyss', name: 'Abyssal zone', topM: -4000, bottomM: -6000 },
   { id: 'hadal', name: 'Hadal zone', topM: -6000, bottomM: -11000 },
+  // Interior structure (PREM): crust base ~35 km, core-mantle boundary 2,891 km, inner core 1,221 km radius.
+  { id: 'crust', name: 'Crust', topM: -11000, bottomM: -35000 },
+  { id: 'mantle', name: 'Mantle', topM: -35000, bottomM: -2891000 },
+  { id: 'outer-core', name: 'Outer core', topM: -2891000, bottomM: -5150000 },
+  { id: 'inner-core', name: 'Inner core', topM: -5150000, bottomM: -EARTH_RADIUS_M },
 ];
 
 export function zoneAt(elevM: number): Zone {
@@ -39,7 +44,20 @@ const STOPS: Array<[number, number]> = [
   [-4000, 0x04152e],
   [-6000, 0x020a18],
   [-11000, 0x000005],
+  [-11001, 0x2b2118],
+  [-35000, 0x4a2e1a],
+  [-2890999, 0x9a3314],
+  [-2891000, 0xe0561c],
+  [-5149999, 0xf79a2e],
+  [-5150000, 0xffe27a],
+  [-6371000, 0xfff6c8],
 ];
+
+/** The colour table as [elevation, colour] pairs, high to low; jumps appear as two entries a hair apart. */
+export const COLOR_STOPS: ReadonlyArray<readonly [number, number]> = STOPS;
+
+/** Elevations where the colour changes. */
+export const COLOR_STOP_ELEVATIONS = STOPS.map(([m]) => m);
 
 export function mixColor(a: number, b: number, t: number): number {
   const k = clamp(t, 0, 1);

@@ -2,14 +2,14 @@ import Phaser from 'phaser';
 import { SPECIES, Species, Instance, placeInstances } from './species';
 import { Progress } from './progress';
 import { SILHOUETTE_BOUNDS } from './silhouettes';
-import { backgroundColorAt, silhouetteColorAt } from './zones';
+import { silhouetteColorAt } from './zones';
 import { buildMarkers } from './markers';
 import { formatElevation } from './format';
 import { pickLargestNearby, pickNearest } from './nearby';
+import { EarthGeometry, backgroundGradient, contourY, earthGeometry } from './earth';
 import {
   DOT_PX,
-  MAX_M_PER_PX,
-  MIN_M_PER_PX,
+  EARTH_RADIUS_M,
   Size,
   View,
   clamp,
@@ -19,8 +19,8 @@ import {
   focusMPerPx,
   focusPx,
   renderMode,
-  screenYToElev,
   sizeInPx,
+  wholeEarthMPerPx,
   wrapDx,
   xToScreenX,
   zoomAbout,
@@ -86,13 +86,22 @@ const TAP_SLOP = 10;
 const KEY_PX_PER_S = 420;
 const KEY_ZOOM_PER_S = 1.8;
 const MIN_HIT_PX = 18;
-const STRIPS = 96;
-const LABEL_GAP_PX = 22;
+const ARC_STEPS = 32;
 /** Names are shown beside circles and small silhouettes (set false to keep undiscovered creatures secret). */
 const SHOW_NAMES = true;
 const LABEL_H = 18;
+/** Zoomed out beyond this, the 1 km column is under ~80 px wide: creatures sit on top of each other and name tags would only pile up. */
+const LABEL_MAX_M_PER_PX = 12;
+/** Zoomed out beyond this, following a creature is pointless (it is a pixel): let the camera roam. */
+const FOLLOW_MAX_M_PER_PX = 2000;
 /** A silhouette bigger than this share of the shorter screen side needs no label: you are looking right at it. */
 const LABEL_MAX_FRACTION = 0.4;
+
+/** A circle as a polygon, with enough corners that it looks round at its size. */
+function circlePoints(cx: number, cy: number, r: number): Phaser.Types.Math.Vector2Like[] {
+  const n = Math.round(clamp(r / 4, 64, 360));
+  return Array.from({ length: n }, (_, i) => ({ x: cx + r * Math.cos((2 * Math.PI * i) / n), y: cy + r * Math.sin((2 * Math.PI * i) / n) }));
+}
 
 const hexToInt = (hex: string) => Phaser.Display.Color.HexStringToColor(hex).color;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -102,7 +111,9 @@ export class DiveScene extends Phaser.Scene {
   private view: View = { x: 0, elevM: 0, mPerPx: 1 };
   private critters: Critter[] = [];
   private labels: MarkerLabel[] = [];
-  private bg!: Phaser.GameObjects.Graphics;
+  private bgTex!: Phaser.Textures.CanvasTexture;
+  private bgImage!: Phaser.GameObjects.Image;
+  private bgKey = '';
   private lines!: Phaser.GameObjects.Graphics;
   private snow?: Phaser.GameObjects.Particles.ParticleEmitter;
   private keys!: Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'q' | 'e', Phaser.Input.Keyboard.Key>;
@@ -113,6 +124,11 @@ export class DiveScene extends Phaser.Scene {
   private following: Critter | null = null;
   private paused = false;
   private lastView = '';
+  private labelLayoutW = 0;
+  private geo: EarthGeometry | null = null;
+  /** Smoothed milliseconds per frame spent building the background and marker geometry (debug/perf). */
+  drawMs = 0;
+  private radiusLabel!: Phaser.GameObjects.Text;
   /** True once create() has finished; the debug API waits for it so tests never race asset loading. */
   isReady = false;
 
@@ -127,10 +143,16 @@ export class DiveScene extends Phaser.Scene {
   create(): void {
     this.hooks = this.registry.get('hooks') as SceneHooks;
     this.view.mPerPx = defaultMPerPx(this.size);
-    this.bg = this.add.graphics().setDepth(-10);
+    this.bgTex = this.textures.createCanvas('bg', Math.max(1, this.scale.width), Math.max(1, this.scale.height))!;
+    this.bgImage = this.add.image(0, 0, 'bg').setOrigin(0, 0).setDepth(-10);
     this.lines = this.add.graphics().setDepth(-4);
     this.makeTextures();
     this.createLabels();
+    this.radiusLabel = this.add
+      .text(0, 0, 'Earth radius 6,371 km', { fontFamily: 'system-ui, sans-serif', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 3, resolution: 2 })
+      .setOrigin(0, 0.5)
+      .setDepth(-2)
+      .setVisible(false);
     this.spawnCritters();
     this.createSnow();
 
@@ -188,6 +210,7 @@ export class DiveScene extends Phaser.Scene {
     this.handlePinch();
 
     if (this.fly) this.stepFly();
+    else if (this.following && this.view.mPerPx > FOLLOW_MAX_M_PER_PX) this.following = null;
     else if (this.following) this.setView({ x: this.following.inst.x, elevM: this.following.inst.elevM });
     else if (!this.drag && (Math.abs(this.vel.x) > 1 || Math.abs(this.vel.y) > 1)) {
       this.setView({ x: this.view.x - this.vel.x * dt * this.view.mPerPx, elevM: this.view.elevM + this.vel.y * dt * this.view.mPerPx });
@@ -198,6 +221,7 @@ export class DiveScene extends Phaser.Scene {
     if (!this.paused) this.moveCritters(dt);
     this.render();
 
+    if (this.scale.width !== this.labelLayoutW) this.layoutLabels(this.scale.width);
     const key = `${this.view.x.toFixed(4)}|${this.view.elevM.toFixed(4)}|${this.view.mPerPx.toPrecision(6)}|${this.scale.width}x${this.scale.height}`;
     if (key !== this.lastView) {
       this.lastView = key;
@@ -234,13 +258,22 @@ export class DiveScene extends Phaser.Scene {
 
   /** Zoom button step: compounds on a zoom already under way and keeps following a focused creature. */
   zoomStep(factor: number): void {
-    const base = this.fly ? this.fly.target().mPerPx : this.view.mPerPx;
-    const mPerPx = clamp(base * factor, MIN_M_PER_PX, MAX_M_PER_PX);
+    const base = this.fly ? this.fly.target() : this.getView();
     const follow = this.following;
-    const { x, elevM } = this.view;
     this.cancelMotion();
     this.following = follow;
-    this.startFly(() => clampView({ x: follow ? this.view.x + wrapDx(follow.inst.x - this.view.x) : x, elevM: follow ? follow.inst.elevM : elevM, mPerPx }));
+    const zoomed = zoomAbout(base, factor, this.size);
+    this.startFly(() => (follow ? clampView({ ...zoomed, x: this.view.x + wrapDx(follow.inst.x - this.view.x), elevM: follow.inst.elevM }) : zoomed));
+  }
+
+  /** Fly out until the whole planet is on screen, centred on its middle. */
+  showWholeEarth(): void {
+    this.flyTo({ x: 0, elevM: -EARTH_RADIUS_M, mPerPx: wholeEarthMPerPx(this.size) });
+  }
+
+  /** How the Earth is currently drawn (used by tests). */
+  earthInfo(): EarthGeometry & { drawMs: number } {
+    return { ...earthGeometry(this.view, this.size), drawMs: this.drawMs };
   }
 
   /** Fly back to the largest thing nearby and frame it: the way out after zooming in on something small. */
@@ -422,8 +455,10 @@ export class DiveScene extends Phaser.Scene {
   private render(): void {
     const v = this.view;
     const { w, h } = this.size;
+    const t0 = performance.now();
     this.drawBackground(w, h);
     this.drawMarkers(w, h);
+    this.drawMs = this.drawMs * 0.9 + (performance.now() - t0) * 0.1;
 
     for (const c of this.critters) {
       c.sx = xToScreenX(v, c.inst.x, w);
@@ -456,7 +491,7 @@ export class DiveScene extends Phaser.Scene {
     const bigPx = Math.min(w, h) * LABEL_MAX_FRACTION;
     const placed: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
     const shown = this.critters
-      .filter((c) => SHOW_NAMES && (c.sprite.visible || c.dot.visible) && c.sizePx < bigPx)
+      .filter((c) => SHOW_NAMES && this.view.mPerPx <= LABEL_MAX_M_PER_PX && (c.sprite.visible || c.dot.visible) && c.sizePx < bigPx)
       .sort((a, b) => b.species.lengthM - a.species.lengthM);
     const keep = new Set<Critter>();
     for (const c of shown) {
@@ -473,35 +508,94 @@ export class DiveScene extends Phaser.Scene {
     for (const c of this.critters) c.label.setVisible(keep.has(c));
   }
 
+  /** Sky, sea and Earth's insides as one gradient on a canvas, repainted only when the view changes. */
   private drawBackground(w: number, h: number): void {
-    const g = this.bg;
-    g.clear();
-    const strip = h / STRIPS;
-    for (let i = 0; i < STRIPS; i++) {
-      g.fillStyle(backgroundColorAt(screenYToElev(this.view, (i + 0.5) * strip, h)), 1);
-      g.fillRect(0, i * strip, w, strip + 1);
+    const geo = earthGeometry(this.view, this.size);
+    this.geo = geo;
+    const key = `${this.lastView}`;
+    if (key === this.bgKey && this.bgTex.width === w && this.bgTex.height === h) return;
+    this.bgKey = key;
+    if (this.bgTex.width !== w || this.bgTex.height !== h) {
+      this.bgTex.setSize(w, h);
+      this.bgImage.setTexture('bg').setDisplaySize(w, h);
     }
+    const spec = backgroundGradient(this.view, this.size, geo);
+    const ctx = this.bgTex.context;
+    const grad = spec.kind === 'radial' ? ctx.createRadialGradient(spec.cx, spec.cy, 0, spec.cx, spec.cy, spec.r) : ctx.createLinearGradient(0, 0, 0, h);
+    for (const s of spec.stops) grad.addColorStop(s.t, `#${s.color.toString(16).padStart(6, '0')}`);
+    ctx.fillStyle = `#${(spec.stops[spec.stops.length - 1]?.color ?? 0).toString(16).padStart(6, '0')}`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+    this.bgTex.refresh();
   }
 
-  /** Landmark lines (gold) and zone edges (white). Labels that would overlap are hidden, landmarks first. */
+  /** Landmark lines (gold) and zone edges (white), curved like the planet; labels that would overlap are hidden, landmarks first. */
   private drawMarkers(w: number, h: number): void {
     const g = this.lines;
     g.clear();
-    const taken: number[] = [];
+    const geo = this.geo ?? earthGeometry(this.view, this.size);
+    const taken: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
     const ordered = [...this.labels].sort((a, b) => Number(b.landmark) - Number(a.landmark));
     for (const m of ordered) {
-      const y = elevToScreenY(this.view, m.elevM, h);
-      const onScreen = y > -4 && y < h + 4;
-      if (onScreen) {
-        g.lineStyle(m.landmark ? 2 : 1, m.landmark ? 0xffe08a : 0xffffff, m.landmark ? 0.7 : 0.35);
-        g.lineBetween(0, y, w, y);
+      const topY = elevToScreenY(this.view, m.elevM, h);
+      const rho = (EARTH_RADIUS_M + m.elevM) / this.view.mPerPx;
+      const wholeCircle = geo.mode === 'circle';
+      const lineY = (x: number) => contourY(this.view, this.size, geo, m.elevM, x);
+      // The label sits at the right edge, or on top of the circle when the circle is narrower than the screen.
+      const atRight = !wholeCircle || Math.abs(w - 8 - geo.cx) < rho;
+      const labelX = atRight ? w - 8 : geo.cx;
+      const labelY = wholeCircle ? (atRight ? geo.cy - Math.sqrt(Math.max(0, rho * rho - (labelX - geo.cx) ** 2)) : geo.cy - rho) : lineY(labelX);
+      const onScreen = labelY > -4 && labelY < h + 4 && labelX > -4 && labelX < w + 4;
+      g.lineStyle(m.landmark ? 2 : 1, m.landmark ? 0xffe08a : 0xffffff, m.landmark ? 0.7 : 0.35);
+      if (wholeCircle) {
+        if (rho > 1) g.strokePoints(circlePoints(geo.cx, geo.cy, rho), true);
+      } else if (topY > -h && topY < 2 * h) {
+        const pts: Phaser.Types.Math.Vector2Like[] = [];
+        const steps = geo.mode === 'flat' ? 1 : ARC_STEPS;
+        for (let i = 0; i <= steps; i++) {
+          const x = (w * i) / steps;
+          pts.push({ x, y: lineY(x) });
+        }
+        g.strokePoints(pts, false);
       }
-      const free = onScreen && !taken.some((t) => Math.abs(t - y) < LABEL_GAP_PX);
+      const tw = m.text.width;
+      const box = { x0: atRight ? labelX - tw : labelX - tw / 2, x1: atRight ? labelX : labelX + tw / 2, y0: labelY - 3 - m.text.height, y1: labelY - 3 };
+      const clash = taken.some((t) => box.x0 < t.x1 + 4 && box.x1 > t.x0 - 4 && box.y0 < t.y1 + 4 && box.y1 > t.y0 - 4);
+      const free = onScreen && !clash;
       m.text.setVisible(free);
       if (free) {
-        taken.push(y);
-        m.text.setPosition(w - 8, y - 3);
+        taken.push(box);
+        m.text.setOrigin(atRight ? 1 : 0.5, 1).setPosition(labelX, labelY - 3);
       }
+    }
+    this.drawRadius(geo);
+  }
+
+  /** When the whole planet is on screen: a line from its centre to the surface, labelled with the radius. */
+  private drawRadius(geo: EarthGeometry): void {
+    const { w, h } = this.size;
+    const show = geo.mode === 'circle' && geo.seaPx >= 36 && geo.cx > 0 && geo.cx < w && geo.cy > 0 && geo.cy < h;
+    this.radiusLabel.setVisible(show);
+    if (!show) return;
+    const g = this.lines;
+    g.lineStyle(2, 0xffffff, 0.9);
+    g.lineBetween(geo.cx, geo.cy, geo.cx, geo.cy - geo.seaPx);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(geo.cx, geo.cy, 3);
+    const roomRight = w - (geo.cx + 12);
+    const flip = roomRight < this.radiusLabel.width;
+    this.radiusLabel.setOrigin(flip ? 1 : 0, 0.5).setPosition(geo.cx + (flip ? -8 : 8), geo.cy - geo.seaPx / 2);
+  }
+
+  /** Level labels shrink and wrap on narrow screens so they never run off the edge. */
+  private layoutLabels(w: number): void {
+    this.labelLayoutW = w;
+    this.radiusLabel.setText(w < 500 ? 'Earth radius\n6,371 km' : 'Earth radius 6,371 km');
+    const wrap = Math.max(120, w - 76);
+    for (const m of this.labels) {
+      m.text.setFontSize(Math.round(clamp(w / (m.landmark ? 24 : 27), 11, m.landmark ? 15 : 13)));
+      m.text.setWordWrapWidth(wrap, true);
     }
   }
 

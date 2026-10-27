@@ -52,5 +52,17 @@
     "elevM": -10935,
     "source": "https://en.wikipedia.org/wiki/Challenger_Deep",
     "short": "10.9 km"
+  },
+  {
+    "id": "earth-center",
+    "name": "Earth's centre (radius 6,371 km)",
+    "elevM": -6371000,
+    "source": "https://en.wikipedia.org/wiki/Earth_radius"
+  },
+  {
+    "id": "core-mantle",
+    "name": "Core-mantle boundary",
+    "elevM": -2891000,
+    "source": "https://en.wikipedia.org/wiki/Internal_structure_of_Earth"
   }
 ]

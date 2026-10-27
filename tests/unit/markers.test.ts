@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { LANDMARKS, buildMarkers } from '../../src/game/markers';
 import { ZONES } from '../../src/game/zones';
-import { BOTTOM_M, TOP_M } from '../../src/game/world';
+import { EARTH_RADIUS_M, TOP_M } from '../../src/game/world';
 
 describe('landmarks', () => {
   it.each(LANDMARKS.map((l) => [l.id, l] as const))('%s is valid', (_id, l) => {
     expect(l.name.length).toBeGreaterThan(3);
     expect(l.source).toMatch(/^https?:\/\//);
-    expect(l.elevM).toBeGreaterThanOrEqual(BOTTOM_M);
+    expect(l.elevM).toBeGreaterThanOrEqual(-EARTH_RADIUS_M);
     expect(l.elevM).toBeLessThanOrEqual(TOP_M);
   });
 
@@ -17,6 +17,8 @@ describe('landmarks', () => {
     expect(byId['iss-orbit']).toBe(408000);
     expect(byId['sea-level']).toBe(0);
     expect(byId['challenger-deep']).toBeLessThan(-10000);
+    expect(byId['earth-center']).toBe(-6371000);
+    expect(byId['core-mantle']).toBe(-2891000);
   });
 });
 
