@@ -1,0 +1,73 @@
+# Worklog: Deep Dive prototype, session 1
+
+Dates: 2026-10-26 to 2026-10-27. Built with Claude Code in a cloud session; nothing was run on a real phone, and the GitHub Actions workflow has not run yet.
+
+## Goal
+
+A mobile (also web and macOS) game or app, built by agents without hand-holding, fully testable in the cloud. The idea that emerged: **discover the depth of the sea and the height of the sky**, with animals and objects shown **only as silhouettes** at their real heights and sizes, ending with the whole Earth at its true radius.
+
+## Decisions
+
+| Topic | Decision | Why |
+|---|---|---|
+| Stack | Phaser 3 + TypeScript + Vite, Capacitor later for iOS/Android | Text-only source, headless-testable in the cloud, one codebase for web/mobile/mac |
+| Art | One white SVG path per animal, tinted by the engine | Agents can write, diff and test it as text; one consistent style |
+| Content | JSON data files with a source and licence for every entry | Agents can add content without touching engine code; data is testable |
+| Scale | One continuous true-scale zoom (metres per pixel), no inflated sprites | The user asked for correct measurements; small things become circles instead |
+| Planet | Sphere of 6,371 km mean radius, camera eases to the centre when zooming out | The user wanted the Earth radius to become visible "after a while" |
+| Overview | Fixed, non-zooming minimap on the right, compressed on purpose | The user tested it and called it perfect |
+| Hosting | Static build; no backend | Longest possible lifetime, cheapest to keep running |
+
+## Timeline
+
+1. **Advice** on tools, then on the sea-and-sky concept, then silhouettes only.
+2. **Prototype** (`44c9568`, branch `claude/elegant-gates-dkskoa`): Phaser dive scene, 13 silhouettes, discovery cards, collection book, localStorage, Vitest + Playwright, CI workflow.
+   - Found by the contact sheet: weak silhouettes (whale like a submarine, near-identical birds), redrawn.
+   - Found by a unit test: a `-0` formatting bug.
+3. **Aircraft, satellites and levels** (`22d6cb0`): 7 new objects (jet, Concorde, balloon, meteor, Starlink, Hubble, ISS), landmarks (Kármán line, ISS orbit, Everest, sea level, Challenger Deep...), atmosphere zones.
+   - Fixed a real test race: the debug API said "ready" while assets were still loading.
+4. **Branch `improvement1`: true scale, circles, minimap** (`3e51663`, `8b394ac`, `65cefe8`).
+   - SVG bounds measured so `lengthM` is the real longest side; sizes corrected.
+   - Anything under 14 px is a circle; tap = fly + zoom + discover.
+   - Always-visible minimap (click to jump, drag to scrub, click a dot to fly there).
+   - Responsive playfield that stops at the minimap; scale bar, wheel/pinch/button zoom.
+   - Opening view at sea level about 300 m wide; name tags on circles; zoom-out-to-largest-nearby button.
+   - Clickable book entries.
+   - Bugs caught by tests: zoom-out button did nothing when zoomed in on something tiny; rapid zoom clicks compounded wrongly.
+5. **Merged to `main`**: `main` did not exist, so it was created from `improvement1` (fast-forward, same commit `65cefe8`).
+6. **Branch `improvement2`: accurate Earth** (`2f87e12`).
+   - Sphere geometry in `src/game/earth.ts` with `flat`/`arc`/`circle` modes; interior layers (crust 35 km, mantle, core-mantle boundary 2,891 km, outer core, inner core 1,221 km radius); radius line labelled 6,371 km; camera pull-back; globe button.
+   - Performance finding: stacked ring fills overdrew the screen about 50 times (screenshots took about 8 s). Replaced with one canvas gradient: about 0.4 s, 1-2 ms per frame of geometry.
+7. **Docs**: README rewritten with the technology, long-term hosting options and known limits; this worklog.
+8. **Merged `improvement2` into `main`** (fast-forward; `main` is the only default line of work now, there is no `master`).
+
+## Branches
+
+| Branch | State |
+|---|---|
+| `claude/elegant-gates-dkskoa` | Original prototype branch, superseded |
+| `improvement1` | Merged into `main` |
+| `main` | Created from `improvement1` at `65cefe8` |
+| `improvement2` | Earth radius + README + worklog; merged into `main` at the end of the session |
+
+## State at the end of the session
+
+- `npm run check` passes: typecheck, 127 unit tests, build, 36 headless end-to-end runs (desktop and phone sizes).
+- 20 species/objects, 10 landmarks, 14 zones.
+- Not deployed anywhere; code is on GitHub only.
+
+## Lessons for next time
+
+- Look at screenshots, not just green tests: most visual problems (clipped labels, hidden tails, ugly silhouettes) were only visible in the images.
+- Headless software rendering is slow; fps is useless as a metric there. Measure the code you control (per-frame geometry time) instead.
+- Avoid overdraw in backgrounds: one gradient beats stacked bands or discs.
+- Tests that wait on animations must wait for the flight to finish (final zoom and elevation), not just an intermediate value.
+- Phone emulation scales wheel deltas by the pixel ratio, so wheel-based tests need more steps there.
+
+## Open questions and next steps
+
+- Should undiscovered creatures show their names on circles (it spoils the "who's that?" idea), or show "???"? Switch: `SHOW_NAMES` in `DiveScene.ts`.
+- Should jumping to an undiscovered book entry discover it, as it does now?
+- Is the 1 km wide creature column and the 1.5 km "nearby" radius right?
+- Next work: deploy to GitHub Pages for phone testing; Capacitor Android/iOS wrapper; much more content (40+ sea, 30+ sky/object entries) with fact-checked sources; quiz mode; sound and haptics.
+- Facts and sizes come from Wikipedia and NOAA links and must be fact-checked before any public release.
