@@ -17,6 +17,12 @@
         </div>
         <button id="book-btn" type="button">Book 0/0</button>
         <div id="scalebar"><div id="scalebar-line"></div><span id="scalebar-label"></span></div>
+        <div id="profile" role="group" aria-label="Mountain profile in the world">
+          <span id="profile-label">Profile</span>
+          <button type="button" data-mountain="" aria-pressed="true">Off</button>
+          <button type="button" data-mountain="everest" aria-pressed="false">Everest</button>
+          <button type="button" data-mountain="mauna-kea" aria-pressed="false">Mauna Kea</button>
+        </div>
         <div id="zoom">
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
@@ -39,7 +45,7 @@
         <div id="peaks-measures"></div>
         <p id="peaks-blurb"></p>
         <canvas id="peaks-canvas" aria-label="Profiles of Mount Everest, Mauna Kea and Mauna Loa on one vertical scale"></canvas>
-        <p class="peak-note">Heights are sourced and drawn on one true vertical scale. Widths and flank shapes are schematic and not to scale.</p>
+        <p class="peak-note">Heights are sourced and drawn on one true vertical scale. In this chart each mountain has its own horizontal scale; use &ldquo;Show its profile in the world&rdquo; for true widths (the shape is schematic, the widths are approximate).</p>
         <ol id="peaks-rank"></ol>
         <div id="peaks-cards"></div>
       </div>

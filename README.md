@@ -11,8 +11,8 @@ A 2D discovery game about **height and depth**. Travel from low Earth orbit (600
 - **Zoom out and the Earth appears.** The horizon bends gradually; after a while the camera pulls back and the whole planet is visible with its layers (atmosphere, sea, crust, mantle, outer core, inner core) and a labelled radius line. The globe button jumps there directly.
 - **Minimap on the right (always visible).** Click to jump to a height or depth, drag to scrub, click a dot to fly to that creature. It never zooms; only the world view does.
 - **Collection book.** Every entry is clickable and flies you to the nearest one of that species.
-- **Height profiles (⛰).** Compare Mount Everest, Mauna Kea and Mauna Loa on one true vertical scale, measured three ways: above sea level (Everest wins; Mauna Kea's summit is only about 38 m higher than Mauna Loa's), base to summit (Mauna Kea, about 10.2 km), and including the crust pressed down under the volcano (Mauna Loa, about 17 km). Fly to any summit from the panel. Heights come from USGS, NOAA/Guinness and the 2020 Nepal-China survey; the profile shapes are schematic.
-- **Important levels are marked:** sea level, Mount Everest, Mauna Kea and Mauna Loa summits, Armstrong limit, Kármán line (edge of space), ISS orbit, average ocean depth, Challenger Deep, core-mantle boundary, the Earth's centre, plus zone edges (sunlit, twilight, midnight, abyssal, hadal, atmosphere layers, interior layers).
+- **Mountain profiles.** Switch `Profile` to Everest or Mauna Kea and the mountain's side profile appears in the world on the same height and depth scale as everything else, at its true width, and the camera flies to frame it. Everest is a steep 17.6 km wide peak on its plateau; Mauna Kea is a very wide, flat shield (about 10.2 km from its base on the sea floor to the summit, only 4.2 km of it above the waves). Heights come from USGS, NOAA/Guinness and the 2020 Nepal-China survey; the flank curve is schematic and the widths are approximate. The ⛰ button compares the two ("above sea level" vs "base to summit").
+- **Important levels are marked:** sea level, Mount Everest and Mauna Kea summits, Armstrong limit, Kármán line (edge of space), ISS orbit, average ocean depth, Challenger Deep, core-mantle boundary, the Earth's centre, plus zone edges (sunlit, twilight, midnight, abyssal, hadal, atmosphere layers, interior layers).
 
 Controls: drag or arrow keys / WASD to move, mouse wheel / pinch / `Q` `E` / the +/- buttons to zoom, `⤢` to zoom out to the largest nearby object, 🌍 for the whole Earth.
 
@@ -74,6 +74,7 @@ Long-term notes:
 
 - The Earth is a perfect sphere: flattening is ignored (equatorial radius 6,378 km, polar 6,357 km). The ocean is a uniform 11 km shell and the crust uses a rough 35 km depth.
 - The creatures live in a 1 km wide wrapping column. At planet scale the column is a single point at the top of the globe.
+- Mountain profile widths are approximate (no surveyed width was found for Mauna Kea or Everest's base) and the flank shapes are idealised curves.
 - Silhouettes are hand-drawn and only approximate real proportions; the goose, squid and amphipod are the roughest.
 - 20 species so far. Most of the huge empty stretches between heights are still empty.
 

@@ -1,15 +1,17 @@
-import { MEASURES, MOUNTAINS, Measure, Mountain, heightBy, profileElevation, rankBy, shoreDistanceKm, summitDifferenceM } from './game/mountains';
+import { MEASURES, MOUNTAINS, Measure, Mountain, fullWidthKm, heightBy, profileElevation, rankBy, shoreDistanceKm } from './game/mountains';
 
 export interface PeaksHooks {
   /** Close the panel and fly the world view to this elevation. */
   flyToElevation(elevM: number): void;
+  /** Close the panel and show this mountain's profile in the world view. */
+  showProfile(id: string): void;
 }
 
 const nf = new Intl.NumberFormat('en-US');
 const fmt = (m: number) => `${nf.format(Math.round(m))} m`;
 
 const TOP_M = 12000; // headroom above Everest for its label
-const BOTTOM_M = -13600;
+const BOTTOM_M = -7600;
 const AXIS_W = 46;
 const SKY = '#bfe6f8';
 const SEA = '#1d6fa0';
@@ -49,9 +51,8 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
     const rows: string[] = [
       `Summit: ${fmt(m.summitM)} above sea level${m.summitNote ? ` (${m.summitNote})` : ''}`,
       `Base: ${m.baseM < 0 ? `${fmt(-m.baseM)} below sea level` : `${fmt(m.baseM)} above sea level`}, so ${fmt(m.summitM - m.baseM)} base to summit`,
+      `Width at the base: about ${fullWidthKm(m).toFixed(1)} km (${m.widthStatus})`,
     ];
-    if (m.depressionM !== null) rows.push(`Presses the crust down about ${fmt(m.depressionM)}, about ${fmt(m.summitM - m.baseM + m.depressionM)} in all`);
-    if (m.volumeKm3 !== null) rows.push(`Volume: at least ${nf.format(m.volumeKm3)} cubic km`);
     for (const r of rows) {
       const li = document.createElement('li');
       li.textContent = r;
@@ -62,6 +63,17 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
     const note = document.createElement('p');
     note.className = 'peak-note';
     note.textContent = m.baseNote;
+    const widthNote = document.createElement('p');
+    widthNote.className = 'peak-note';
+    widthNote.textContent = m.widthNote;
+    const show = document.createElement('button');
+    show.type = 'button';
+    show.dataset.show = m.id;
+    show.textContent = 'Show its profile in the world';
+    show.addEventListener('click', () => {
+      close();
+      hooks.showProfile(m.id);
+    });
     const fly = document.createElement('button');
     fly.type = 'button';
     fly.dataset.fly = m.id;
@@ -81,7 +93,7 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
       a.textContent = new URL(u).hostname.replace(/^www\./, '');
       src.append(i ? ', ' : '', a);
     });
-    el.append(h, stats, fact, note, fly, src);
+    el.append(h, stats, fact, note, widthNote, show, fly, src);
     return el;
   }
 
@@ -98,20 +110,6 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
         return li;
       }),
     );
-    if (ranking.length < MOUNTAINS.length) {
-      const li = document.createElement('li');
-      li.className = 'peak-note';
-      li.textContent = 'No sourced figure for the others.';
-      rankEl.append(li);
-    }
-    const kea = MOUNTAINS.find((m) => m.id === 'mauna-kea');
-    const loa = MOUNTAINS.find((m) => m.id === 'mauna-loa');
-    if (kea && loa && measure === 'above-sea') {
-      const li = document.createElement('li');
-      li.className = 'peak-note';
-      li.textContent = `Mauna Kea's summit is only ${fmt(summitDifferenceM(kea, loa))} higher than Mauna Loa's; Mauna Loa is far bigger by volume.`;
-      rankEl.append(li);
-    }
     cards.querySelectorAll<HTMLElement>('.peak-card').forEach((c) => c.classList.toggle('winner', c.dataset.id === ranking[0]?.mountain.id));
     draw();
   }
@@ -131,7 +129,7 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
     const winner = rankBy(measure)[0]?.mountain.id;
 
     ctx.font = '11px system-ui, sans-serif';
-    for (let e = -12000; e <= 8000; e += 2000) {
+    for (let e = -6000; e <= 8000; e += 2000) {
       ctx.strokeStyle = e === 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.12)';
       ctx.setLineDash(e === 0 ? [6, 4] : []);
       ctx.beginPath();
@@ -162,24 +160,6 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
       ctx.fillStyle = GROUND;
       ctx.fillRect(x0 + 2, y(m.baseM), slotW - 4, y(BOTTOM_M) - y(m.baseM));
 
-      // crust pressed down under the volcano (dashed bowl)
-      if (m.depressionM !== null) {
-        ctx.beginPath();
-        ctx.moveTo(px(-m.halfWidthKm), y(m.baseM));
-        for (let k = -m.halfWidthKm; k <= m.halfWidthKm; k += m.halfWidthKm / 20) {
-          const u = k / m.halfWidthKm;
-          ctx.lineTo(px(k), y(m.baseM - m.depressionM * (1 - u * u)));
-        }
-        ctx.lineTo(px(m.halfWidthKm), y(m.baseM));
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(224,86,28,0.35)';
-        ctx.fill();
-        ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = '#ffb08a';
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
       // the mountain
       ctx.beginPath();
       ctx.moveTo(px(-m.halfWidthKm), y(m.baseM));
@@ -203,8 +183,8 @@ export function createPeaks(hooks: PeaksHooks): { open(): void; close(): void; m
       // bracket for the chosen measure, drawn beside the summit
       const total = heightBy(m, measure);
       const bx = cx + half * 0.28;
-      if (total !== null) {
-        const lowElev = measure === 'above-sea' ? 0 : measure === 'base-to-summit' ? m.baseM : m.baseM - (m.depressionM ?? 0);
+      {
+        const lowElev = measure === 'above-sea' ? 0 : m.baseM;
         ctx.strokeStyle = '#ffe08a';
         ctx.lineWidth = 2;
         ctx.beginPath();

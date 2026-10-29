@@ -8,6 +8,7 @@ export const BOTTOM_M = -11000;
 export const WORLD_W_M = 1000;
 /** Mean radius of the Earth (IUGG): the world is a sphere of this radius, its centre this far below sea level. */
 export const EARTH_RADIUS_M = 6_371_000;
+export const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * EARTH_RADIUS_M;
 
 /** Size of the playfield in CSS pixels; it follows the window, so these functions take it as a parameter. */
 export interface Size {
@@ -29,7 +30,7 @@ export const DOT_PX = 14;
 export const FOCUS_FRACTION = 0.55;
 
 export interface View {
-  /** Horizontal centre in metres, kept in [-WORLD_W_M/2, WORLD_W_M/2). */
+  /** Horizontal position in metres along the surface of the Earth (a true distance); the creature column sits at 0 and repeats every WORLD_W_M. Wraps once around the planet. */
   x: number;
   /** Elevation at the screen centre in metres. */
   elevM: number;
@@ -56,7 +57,7 @@ export function clampView(v: View): View {
   const m = clamp(v.mPerPx, MIN_M_PER_PX, MAX_M_PER_PX);
   const lowest = Math.max(-EARTH_RADIUS_M, BOTTOM_M - CLAMP_HALF_H_PX * m);
   const highest = TOP_M + Math.min(CLAMP_HALF_H_PX * m, EARTH_RADIUS_M);
-  return { x: wrapDx(v.x), elevM: clamp(v.elevM, lowest, highest), mPerPx: m };
+  return { x: wrapDx(v.x, EARTH_CIRCUMFERENCE_M), elevM: clamp(v.elevM, lowest, highest), mPerPx: m };
 }
 
 export function sizeInPx(lengthM: number, mPerPx: number): number {

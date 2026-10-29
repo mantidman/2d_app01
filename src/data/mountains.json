@@ -3,17 +3,19 @@
     "id": "everest",
     "name": "Mount Everest",
     "summitM": 8848.86,
-    "baseM": 5150,
-    "baseNote": "North Base Camp on the Tibetan side, approximate: the height above the Tibetan Plateau is usually quoted as about 3.7 km.",
-    "depressionM": null,
-    "volumeKm3": null,
-    "halfWidthKm": 20,
-    "shape": { "kind": "peak" },
+    "baseM": 5364,
+    "baseNote": "South Base Camp (Nepal side), 5,364 m. The Tibetan side starts a little lower (North Base Camp, about 5,150 m); from the Tibetan Plateau Everest is usually quoted as rising about 3.7 km. Base-camp heights are not verified here.",
+    "halfWidthKm": 8.8,
+    "shape": {
+      "kind": "peak"
+    },
     "color": "#d9d9e6",
     "fact": "The highest point above sea level: 8,848.86 m by the 2020 Nepal-China survey. Its base is already on a plateau more than 5 km up.",
     "sources": [
       "https://kathmandupost.com/national/2020/12/08/it-s-official-mount-everest-is-8-848-86-metres-tall"
-    ]
+    ],
+    "widthNote": "Half-width 8.8 km: the straight-line distance from Base Camp to the summit, about 8.8 km, as reported by trekking sources. Approximate and not verified against a survey; the profile is mirrored to the other side.",
+    "widthStatus": "approximate"
   },
   {
     "id": "mauna-kea",
@@ -22,33 +24,17 @@
     "summitNote": "Sources give 4,205 to 4,207 m (13,796 to 13,803 ft).",
     "baseM": -5998,
     "baseNote": "Base on the ocean floor: NOAA and Guinness give about 10,205 to 10,210 m from base to summit; where the base begins is debated.",
-    "depressionM": null,
-    "volumeKm3": null,
-    "halfWidthKm": 90,
-    "shape": { "kind": "shield" },
+    "halfWidthKm": 60,
+    "shape": {
+      "kind": "shield"
+    },
     "color": "#8fbf8f",
     "fact": "Only 4.2 km of it is above the waves. From its base on the Pacific floor it rises about 10.2 km, more than Everest does above sea level.",
     "sources": [
       "https://scienceblog.com/mount-everest-is-the-highest-point-above-sea-level-but-it-is-not-the-tallest-mountain-on-earth-mauna-kea-in-hawaii-rises-roughly-10200-metres-from-its-base-on-the-ocean-floor-nearly-twice/",
       "https://www.guinnessworldrecords.com.br/world-records/tallest-mountain"
-    ]
-  },
-  {
-    "id": "mauna-loa",
-    "name": "Mauna Loa",
-    "summitM": 4169,
-    "baseM": -5000,
-    "baseNote": "USGS: the submarine flanks descend about 5 km to the ocean floor.",
-    "depressionM": 8000,
-    "volumeKm3": 75000,
-    "halfWidthKm": 100,
-    "shape": { "kind": "shield" },
-    "color": "#c9a27a",
-    "fact": "Earth's largest active volcano, at least 75,000 cubic km. Its weight presses the seafloor down about another 8 km, so it stands about 17 km above its base.",
-    "sources": [
-      "https://www.usgs.gov/volcanoes/mauna-loa",
-      "https://www.usgs.gov/faqs/where-largest-active-volcano-world",
-      "https://www.usgs.gov/volcanoes/mauna-loa/science/geology-and-history-mauna-loa"
-    ]
+    ],
+    "widthNote": "Half-width 60 km: assumed to be like its neighbour Mauna Loa, whose base is about 120 km across (NASA Goddard). A figure for Mauna Kea itself was not found, so this is an estimate.",
+    "widthStatus": "approximate"
   }
 ]

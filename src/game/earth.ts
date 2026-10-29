@@ -1,5 +1,5 @@
 import { COLOR_STOPS, backgroundColorAt } from './zones';
-import { EARTH_RADIUS_M, Size, View, clamp, elevToScreenY } from './world';
+import { EARTH_CIRCUMFERENCE_M, EARTH_RADIUS_M, Size, View, clamp, elevToScreenY, wrapDx } from './world';
 
 /**
  * Earth geometry for drawing. The world is a sphere: every elevation e is a circle of radius R+e
@@ -38,7 +38,8 @@ export function sag(rho: number, d: number): number {
 export function earthGeometry(view: View, size: Size): EarthGeometry {
   const { w, h } = size;
   const m = view.mPerPx;
-  const cx = w / 2 - view.x / m;
+  // The camera walks along the surface, so the planet's centre is always straight below the screen centre.
+  const cx = w / 2;
   const seaPx = EARTH_RADIUS_M / m;
   const dEdge = Math.max(Math.abs(0 - cx), Math.abs(w - cx));
   const sagPx = sag(seaPx, Math.min(dEdge, seaPx));
@@ -101,4 +102,16 @@ export function contourY(view: View, size: Size, g: EarthGeometry, e: number, x:
   const top = elevToScreenY(view, e, size.h);
   if (g.mode === 'flat') return top;
   return top + sag((EARTH_RADIUS_M + e) / view.mPerPx, x - g.cx);
+}
+
+/**
+ * Screen position of a point given by distance along the surface (metres, 0 = the creature column)
+ * and elevation, on the round Earth. Camera-centred, so it agrees with the curved background and the
+ * landmark arcs.
+ */
+export function worldToScreen(view: View, size: Size, sM: number, elevM: number): { x: number; y: number } {
+  const theta = wrapDx(sM - view.x, EARTH_CIRCUMFERENCE_M) / EARTH_RADIUS_M;
+  const rho = (EARTH_RADIUS_M + elevM) / view.mPerPx;
+  const s = Math.sin(theta / 2);
+  return { x: size.w / 2 + rho * Math.sin(theta), y: elevToScreenY(view, elevM, size.h) + 2 * rho * s * s };
 }

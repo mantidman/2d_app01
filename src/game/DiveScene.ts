@@ -6,7 +6,9 @@ import { silhouetteColorAt } from './zones';
 import { buildMarkers } from './markers';
 import { formatElevation } from './format';
 import { pickLargestNearby, pickNearest } from './nearby';
-import { EarthGeometry, backgroundGradient, contourY, earthGeometry } from './earth';
+import { EarthGeometry, backgroundGradient, contourY, earthGeometry, worldToScreen } from './earth';
+import { Rect, clipPolygon, clipSegment } from './clip';
+import { MOUNTAINS, Mountain, PLATFORM_HALF_WIDTHS, axisM, frameView, fullWidthKm, insideSolid, profileElevation } from './mountains';
 import {
   DOT_PX,
   EARTH_RADIUS_M,
@@ -30,6 +32,8 @@ export interface SceneHooks {
   progress: Progress;
   onView(view: View, size: Size): void;
   onTap(species: Species, isNew: boolean): void;
+  /** The mountain profile layer changed (null = off). */
+  onMountain?(id: string | null): void;
 }
 
 export interface CritterPoint {
@@ -60,6 +64,8 @@ interface Critter {
   dot: Phaser.GameObjects.Image;
   halo: Phaser.GameObjects.Image;
   phase: number;
+  /** Inside rock or ground while a mountain profile is shown: not drawn, not tappable. */
+  hidden: boolean;
   sx: number;
   sy: number;
   sizePx: number;
@@ -103,6 +109,8 @@ function circlePoints(cx: number, cy: number, r: number): Phaser.Types.Math.Vect
   return Array.from({ length: n }, (_, i) => ({ x: cx + r * Math.cos((2 * Math.PI * i) / n), y: cy + r * Math.sin((2 * Math.PI * i) / n) }));
 }
 
+const nfm = (m: number) => new Intl.NumberFormat('en-US').format(Math.round(m));
+
 const hexToInt = (hex: string) => Phaser.Display.Color.HexStringToColor(hex).color;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
@@ -126,6 +134,11 @@ export class DiveScene extends Phaser.Scene {
   private lastView = '';
   private labelLayoutW = 0;
   private geo: EarthGeometry | null = null;
+  private mountain: Mountain | null = null;
+  private mtnGfx!: Phaser.GameObjects.Graphics;
+  private mtnLabel!: Phaser.GameObjects.Text;
+  /** Screen boxes other labels must stay out of (the mountain's own label), refilled every frame. */
+  private reserved: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
   /** Smoothed milliseconds per frame spent building the background and marker geometry (debug/perf). */
   drawMs = 0;
   private radiusLabel!: Phaser.GameObjects.Text;
@@ -145,6 +158,12 @@ export class DiveScene extends Phaser.Scene {
     this.view.mPerPx = defaultMPerPx(this.size);
     this.bgTex = this.textures.createCanvas('bg', Math.max(1, this.scale.width), Math.max(1, this.scale.height))!;
     this.bgImage = this.add.image(0, 0, 'bg').setOrigin(0, 0).setDepth(-10);
+    this.mtnGfx = this.add.graphics().setDepth(-6);
+    this.mtnLabel = this.add
+      .text(0, 0, '', { fontFamily: 'system-ui, sans-serif', fontSize: '13px', color: '#ffffff', align: 'center', stroke: '#000000', strokeThickness: 3, resolution: 2 })
+      .setOrigin(0.5, 1)
+      .setDepth(-2)
+      .setVisible(false);
     this.lines = this.add.graphics().setDepth(-4);
     this.makeTextures();
     this.createLabels();
@@ -266,6 +285,28 @@ export class DiveScene extends Phaser.Scene {
     this.startFly(() => (follow ? clampView({ ...zoomed, x: this.view.x + wrapDx(follow.inst.x - this.view.x), elevM: follow.inst.elevM }) : zoomed));
   }
 
+  /** Show a mountain's side profile in the world (true width, schematic shape) and fly to frame it; null hides it. */
+  setMountain(id: string | null, frame = true): void {
+    this.mountain = id ? (MOUNTAINS.find((m) => m.id === id) ?? null) : null;
+    this.hooks.onMountain?.(this.mountain?.id ?? null);
+    if (this.mountain && frame) {
+      const f = frameView(this.mountain, this.size);
+      this.flyTo({ x: f.x, elevM: f.elevM, mPerPx: f.mPerPx });
+    }
+  }
+
+  /** Where the shown mountain is on screen (used by tests). */
+  mountainInfo(): { id: string; widthPx: number; heightPx: number; summit: { x: number; y: number }; footLeft: { x: number; y: number }; footRight: { x: number; y: number } } | null {
+    const m = this.mountain;
+    if (!m) return null;
+    const W = m.halfWidthKm * 1000;
+    const at = (s: number, e: number) => worldToScreen(this.view, this.size, s, e);
+    const summit = at(axisM(m), m.summitM);
+    const footLeft = at(axisM(m) - W, m.baseM);
+    const footRight = at(axisM(m) + W, m.baseM);
+    return { id: m.id, widthPx: footRight.x - footLeft.x, heightPx: footLeft.y - summit.y, summit, footLeft, footRight };
+  }
+
   /** Fly to a height on the world's axis at the opening zoom (used by the mountain profiles). */
   flyToElevation(elevM: number): void {
     this.flyTo({ x: 0, elevM, mPerPx: defaultMPerPx(this.size) });
@@ -334,7 +375,7 @@ export class DiveScene extends Phaser.Scene {
     const scale = rect.width / this.scale.width;
     const { w, h } = this.size;
     for (const c of this.critters) {
-      if (c.species.id !== speciesId) continue;
+      if (c.species.id !== speciesId || c.hidden) continue;
       if (c.sy < 0 || c.sy > h || c.sx < 0 || c.sx > w) continue;
       return { key: c.key, x: rect.left + c.sx * scale, y: rect.top + c.sy * scale, sizePx: c.sizePx, mode: c.mode };
     }
@@ -387,7 +428,7 @@ export class DiveScene extends Phaser.Scene {
   private startFly(target: () => View, onDone?: () => void): void {
     const from = this.getView();
     const to = target();
-    const distM = Math.hypot(wrapDx(to.x - from.x), to.elevM - from.elevM);
+    const distM = Math.hypot(to.x - from.x, to.elevM - from.elevM);
     const lz0 = Math.log(from.mPerPx);
     const lz1 = Math.log(to.mPerPx);
     const needLog = Math.log(Math.max(distM / (0.7 * this.size.h), 1e-9));
@@ -406,7 +447,7 @@ export class DiveScene extends Phaser.Scene {
     const lz1 = Math.log(to.mPerPx);
     const bump = Math.max(0, f.peakLog - Math.max(lz0, lz1)) * Math.sin(Math.PI * s);
     this.setView({
-      x: f.from.x + wrapDx(to.x - f.from.x) * s,
+      x: f.from.x + (to.x - f.from.x) * s,
       elevM: f.from.elevM + (to.elevM - f.from.elevM) * s,
       mPerPx: Math.exp(lz0 + (lz1 - lz0) * s + bump),
     });
@@ -418,6 +459,7 @@ export class DiveScene extends Phaser.Scene {
   }
 
   private focusCritter(c: Critter): void {
+    if (c.hidden) this.setMountain(null, false); // it lives inside the rock: take the mountain away so it can be seen
     this.cancelMotion();
     this.following = c;
     const wanted = focusMPerPx(c.species.lengthM, this.size);
@@ -440,6 +482,7 @@ export class DiveScene extends Phaser.Scene {
     let best: Critter | null = null;
     let bestD = Infinity;
     for (const c of this.critters) {
+      if (c.hidden) continue;
       const r = Math.max(MIN_HIT_PX, c.mode === 'sprite' ? c.sizePx * 0.45 : 0);
       const d = Math.hypot(c.sx - px, c.sy - py);
       if (d <= r && d < bestD) {
@@ -462,16 +505,18 @@ export class DiveScene extends Phaser.Scene {
     const { w, h } = this.size;
     const t0 = performance.now();
     this.drawBackground(w, h);
+    this.drawMountain(w, h);
     this.drawMarkers(w, h);
     this.drawMs = this.drawMs * 0.9 + (performance.now() - t0) * 0.1;
 
     for (const c of this.critters) {
       c.sx = xToScreenX(v, c.inst.x, w);
       c.sy = elevToScreenY(v, c.inst.elevM, h);
+      c.hidden = this.mountain !== null && insideSolid(this.mountain, v.x + wrapDx(c.inst.x - v.x), c.inst.elevM);
       c.sizePx = sizeInPx(c.species.lengthM, v.mPerPx);
       c.mode = renderMode(c.sizePx);
       const margin = Math.max(c.sizePx, DOT_PX * 3);
-      const visible = c.sx > -margin && c.sx < w + margin && c.sy > -margin && c.sy < h + margin;
+      const visible = !c.hidden && c.sx > -margin && c.sx < w + margin && c.sy > -margin && c.sy < h + margin;
       const showSprite = visible && c.mode === 'sprite';
       const showDot = visible && c.mode === 'dot';
       c.sprite.setVisible(showSprite);
@@ -535,12 +580,77 @@ export class DiveScene extends Phaser.Scene {
     this.bgTex.refresh();
   }
 
+  /** The mountain's side profile on the round Earth, clipped to the screen. Heights are sourced, the flank curve is schematic. */
+  private drawMountain(w: number, h: number): void {
+    const g = this.mtnGfx;
+    g.clear();
+    this.reserved = [];
+    const m = this.mountain;
+    if (!m) {
+      this.mtnLabel.setVisible(false);
+      return;
+    }
+    const v = this.view;
+    const size = this.size;
+    const W = m.halfWidthKm * 1000;
+    const axis = axisM(m);
+    const rect: Rect = { x0: -40, y0: -40, x1: w + 40, y1: h + 40 };
+    const halfVis = w * 0.65 * v.mPerPx;
+    const range = (half: number): [number, number] | null => {
+      const lo = Math.max(v.x - halfVis, axis - half);
+      const hi = Math.min(v.x + halfVis, axis + half);
+      return lo < hi ? [lo, hi] : null;
+    };
+    const pt = (s: number, e: number) => worldToScreen(v, size, s, e);
+    const line = (a: number, b: number, n: number, elev: (s: number) => number) => Array.from({ length: n + 1 }, (_, i) => {
+      const s = a + ((b - a) * i) / n;
+      return pt(s, elev(s));
+    });
+    const fill = (poly: Array<{ x: number; y: number }>, color: number) => {
+      const clipped = clipPolygon(poly, rect);
+      if (clipped.length >= 3) g.fillStyle(color, 1).fillPoints(clipped, true);
+    };
+
+    const plat = range(PLATFORM_HALF_WIDTHS * W);
+    if (plat) {
+      const top = line(plat[0], plat[1], 48, () => m.baseM);
+      fill([...top, pt(plat[1], m.baseM - 20000), pt(plat[0], m.baseM - 20000)], 0x4a2e1a);
+    }
+    const body = range(W);
+    if (body) {
+      const profile = (s: number) => profileElevation(m, Math.abs(s - axis) / 1000);
+      const bottom = line(body[0], body[1], 48, () => m.baseM);
+      const top = line(body[1], body[0], 160, profile);
+      fill([...bottom, ...top], hexToInt(m.color));
+      g.lineStyle(2, 0xffffff, 0.85);
+      for (let i = 0; i + 1 < top.length; i++) {
+        const seg = clipSegment(top[i], top[i + 1], rect);
+        if (seg) g.lineBetween(seg[0].x, seg[0].y, seg[1].x, seg[1].y);
+      }
+    }
+
+    const sp = pt(axis, m.summitM);
+    const show = sp.x > 20 && sp.x < w - 20 && sp.y > 30 && sp.y < h - 10;
+    this.mtnLabel.setVisible(show);
+    if (show) {
+      const narrow = w < 500;
+      this.mtnLabel.setWordWrapWidth(Math.max(120, w - 60), true);
+      this.mtnLabel.setFontSize(narrow ? 12 : 13);
+      this.mtnLabel.setText(narrow ? `${m.name} · ${nfm(m.summitM)} m\n${fullWidthKm(m).toFixed(1)} km wide (approx.)` : `${m.name} · ${nfm(m.summitM)} m\nwidth about ${fullWidthKm(m).toFixed(1)} km (approx.), shape schematic`);
+      this.mtnLabel.setPosition(sp.x, sp.y - 6);
+      const tw = this.mtnLabel.width;
+      const th = this.mtnLabel.height;
+      this.reserved.push({ x0: sp.x - tw / 2, x1: sp.x + tw / 2, y0: sp.y - 6 - th, y1: sp.y - 6 });
+    }
+  }
+
   /** Landmark lines (gold) and zone edges (white), curved like the planet; labels that would overlap are hidden, landmarks first. */
   private drawMarkers(w: number, h: number): void {
     const g = this.lines;
     g.clear();
     const geo = this.geo ?? earthGeometry(this.view, this.size);
-    const taken: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
+    const taken: Array<{ x0: number; x1: number; y0: number; y1: number }> = [...this.reserved];
+    if (this.mountain) taken.push({ x0: 0, x1: w, y0: 104, y1: 162 }); // the profile buttons sit here
     const ordered = [...this.labels].sort((a, b) => Number(b.landmark) - Number(a.landmark));
     for (const m of ordered) {
       const topY = elevToScreenY(this.view, m.elevM, h);
@@ -665,6 +775,7 @@ export class DiveScene extends Phaser.Scene {
           dot,
           halo,
           phase: 0,
+          hidden: false,
           sx: -1e6,
           sy: -1e6,
           sizePx: 0,

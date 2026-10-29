@@ -17,6 +17,8 @@ export interface UiHooks {
   showEarth(): void;
   /** Fly to the nearest one of a species and focus it. */
   focusSpecies(speciesId: string): void;
+  /** Show a mountain's profile in the world, or hide it with null. */
+  chooseMountain(id: string | null): void;
 }
 
 export interface UiControls {
@@ -24,6 +26,8 @@ export interface UiControls {
   setPoints(p: CritterPoint[]): void;
   showCard(sp: Species, isNew: boolean): void;
   refresh(): void;
+  /** Reflect which mountain profile is shown (null = off). */
+  setMountain(id: string | null): void;
   minimap: Minimap;
 }
 
@@ -43,6 +47,13 @@ export function createUi(progress: Progress, hooks: UiHooks): UiControls {
   const minimap = new Minimap(el<HTMLCanvasElement>('minimap-canvas'), hooks);
   let hideTimer: number | undefined;
   let points: CritterPoint[] = [];
+
+  const profileButtons = [...document.querySelectorAll<HTMLButtonElement>('#profile button')];
+  for (const b of profileButtons) b.addEventListener('click', () => hooks.chooseMountain(b.dataset.mountain || null));
+  const markMountain = (id: string | null) => {
+    for (const b of profileButtons) b.setAttribute('aria-pressed', String((b.dataset.mountain || null) === id));
+  };
+  markMountain(null);
 
   const dismissHint = () => (hint.hidden = true);
   for (const ev of ['pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, dismissHint, { once: true, passive: true });
@@ -106,6 +117,7 @@ export function createUi(progress: Progress, hooks: UiHooks): UiControls {
       scaleLabel.textContent = s.label;
       minimap.setView(v, size);
     },
+    setMountain: markMountain,
     setPoints(p) {
       points = p;
       minimap.setPoints(p);

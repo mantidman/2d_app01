@@ -20,9 +20,10 @@ const ui = createUi(progress, {
   fitLargest: () => scene()?.focusLargestNearby(),
   showEarth: () => scene()?.showWholeEarth(),
   focusSpecies: (id) => scene()?.focusSpecies(id),
+  chooseMountain: (id) => scene()?.setMountain(id),
 });
 
-createPeaks({ flyToElevation: (m) => scene()?.flyToElevation(m) });
+createPeaks({ flyToElevation: (m) => scene()?.flyToElevation(m), showProfile: (id) => scene()?.setMountain(id) });
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -36,6 +37,7 @@ const game = new Phaser.Game({
         progress,
         onView: (v: View, size: Size) => ui.setView(v, size),
         onTap: (sp: (typeof SPECIES)[number], isNew: boolean) => ui.showCard(sp, isNew),
+        onMountain: (id: string | null) => ui.setMountain(id),
       });
     },
   },
@@ -67,6 +69,8 @@ const readyTimer = window.setInterval(() => {
   focus: (key: string) => scene()?.focusOn(key),
   fitLargest: () => scene()?.focusLargestNearby() ?? null,
   showEarth: () => scene()?.showWholeEarth(),
+  setMountain: (id: string | null) => scene()?.setMountain(id),
+  mountainInfo: () => scene()?.mountainInfo() ?? null,
   earthInfo: () => scene()?.earthInfo(),
   focusSpecies: (id: string) => scene()?.focusSpecies(id) ?? null,
   labels: () => scene()?.visibleLabels() ?? [],

@@ -22,6 +22,8 @@ type GameApi = {
   focus(key: string): boolean;
   fitLargest(): string | null;
   showEarth(): void;
+  setMountain(id: string | null): void;
+  mountainInfo(): { id: string; widthPx: number; heightPx: number; summit: { x: number; y: number }; footLeft: { x: number; y: number }; footRight: { x: number; y: number } } | null;
   earthInfo(): { mode: 'flat' | 'arc' | 'circle'; seaPx: number; sagPx: number; cx: number; cy: number };
   focusSpecies(id: string): string | null;
   labels(): Array<{ key: string; text: string; x: number; y: number }>;
@@ -378,28 +380,21 @@ test('the Earth button shows the whole planet and the way back down works', asyn
   expect((await view(page)).mPerPx).toBeLessThan(5);
 });
 
-test('the height profile panel compares Everest, Mauna Kea and Mauna Loa', async ({ page }) => {
+test('the height profile panel compares Everest and Mauna Kea', async ({ page }) => {
   await start(page);
   await page.locator('#peaks-btn').click();
   await expect(page.locator('#peaks')).toBeVisible();
-  await expect(page.locator('.peak-card')).toHaveCount(3);
+  await expect(page.locator('.peak-card')).toHaveCount(2);
 
-  // Above sea level, Everest wins; Mauna Kea only edges out Mauna Loa by a few dozen metres.
+  // Above sea level Everest wins; from the base Mauna Kea does.
   await expect(page.locator('#peaks-rank li.winner')).toContainText('Mount Everest: 8,849 m');
-  await expect(page.locator('#peaks-rank')).toContainText('only 38 m higher');
   await shot(page, 'peaks-above-sea');
-
-  // From the base, Mauna Kea is the tallest mountain.
   await page.locator('#peaks-measures button[data-measure="base-to-summit"]').click();
   await expect(page.locator('#peaks-rank li.winner')).toContainText('Mauna Kea: 10,205 m');
   await expect(page.locator('.peak-card.winner')).toHaveAttribute('data-id', 'mauna-kea');
+  await expect(page.locator('.peak-card[data-id="mauna-kea"]')).toContainText('approximate'); // the width is honest about being approximate
   await shot(page, 'peaks-base-to-summit');
-
-  // With the pressed-down crust only Mauna Loa has a figure.
-  await page.locator('#peaks-measures button[data-measure="with-depression"]').click();
-  await expect(page.locator('#peaks-rank li.winner')).toContainText('Mauna Loa: 17,169 m');
-  await expect(page.locator('#peaks-rank')).toContainText('No sourced figure for the others');
-  await shot(page, 'peaks-with-depression');
+  await expect(page.locator('#peaks-measures button')).toHaveCount(2);
 });
 
 test('flying to a summit from the profile panel', async ({ page }) => {
@@ -413,7 +408,104 @@ test('flying to a summit from the profile panel', async ({ page }) => {
   await shot(page, 'peaks-everest-summit');
 
   await page.locator('#peaks-btn').click();
-  await page.locator('[data-fly="mauna-loa"]').click();
-  await page.waitForFunction(() => Math.abs(window.__game.getView().elevM - 4169) < 0.01);
-  await expect(page.locator('#depth')).toHaveText('4,169 m above');
+  await page.locator('[data-fly="mauna-kea"]').click();
+  await page.waitForFunction(() => Math.abs(window.__game.getView().elevM - 4207) < 0.01);
+  await expect(page.locator('#depth')).toHaveText('4,207 m above');
+});
+
+/** Wait until a fly-to-frame of the mountain has finished. */
+async function waitFramed(page: Page, id: 'everest' | 'mauna-kea') {
+  const m = id === 'everest' ? { half: 8800, summit: 8848.86, base: 5364 } : { half: 60000, summit: 4207, base: -5998 };
+  await page.waitForFunction(
+    (k) => {
+      const v = window.__game.getView();
+      const s = window.__game.getSize();
+      const f = Math.max((2 * k.half * 1.15) / s.w, ((k.summit - k.base) * 1.4) / s.h);
+      return Math.abs(v.x + k.half) < 0.5 && Math.abs(v.mPerPx - f) < 1e-9 * f + 1e-9;
+    },
+    m,
+  );
+}
+
+test('the mountain profile toggle shows Everest in the world at its true width', async ({ page }) => {
+  await start(page);
+  await expect(page.locator('#profile button[aria-pressed="true"]')).toHaveText('Off');
+  expect(await page.evaluate(() => window.__game.mountainInfo())).toBeNull();
+
+  await page.locator('#profile button[data-mountain="everest"]').click();
+  await waitFramed(page, 'everest');
+  const info = (await page.evaluate(() => window.__game.mountainInfo()))!;
+  const size = await page.evaluate(() => window.__game.getSize());
+  const v = await view(page);
+  expect(info.id).toBe('everest');
+  expect(Math.abs((info.widthPx * v.mPerPx) / 17600 - 1)).toBeLessThan(0.002); // 17.6 km wide (a hair more at 5 km up, on the larger circle)
+  expect(info.widthPx).toBeLessThanOrEqual(size.w); // the whole mountain is in view
+  expect(info.widthPx).toBeGreaterThan(size.w * 0.7);
+  expect(Math.abs((info.heightPx * v.mPerPx) / (8848.86 - 5364) - 1)).toBeLessThan(0.01); // 3,485 m from base to summit, same scale
+  expect(info.summit.y).toBeLessThan(info.footLeft.y); // the summit is above the foot
+  await expect(page.locator('#profile button[aria-pressed="true"]')).toHaveText('Everest');
+  await shot(page, 'profile-everest');
+});
+
+test('switching to Mauna Kea shows a much wider, flatter shape, and Off removes it', async ({ page }) => {
+  await start(page);
+  await page.locator('#profile button[data-mountain="everest"]').click();
+  await waitFramed(page, 'everest');
+  await page.locator('#profile button[data-mountain="mauna-kea"]').click();
+  await waitFramed(page, 'mauna-kea');
+  const info = (await page.evaluate(() => window.__game.mountainInfo()))!;
+  const v = await view(page);
+  expect(info.id).toBe('mauna-kea');
+  expect(Math.abs((info.widthPx * v.mPerPx) / 120000 - 1)).toBeLessThan(0.002); // 120 km wide
+  // true proportions: 10.2 km tall over 120 km wide (the Earth's curve lowers the feet by under 3%)
+  expect(info.heightPx / info.widthPx).toBeGreaterThan(0.08);
+  expect(info.heightPx / info.widthPx).toBeLessThan(0.09);
+  await shot(page, 'profile-mauna-kea');
+
+  await page.locator('#profile button[data-mountain=""]').click();
+  expect(await page.evaluate(() => window.__game.mountainInfo())).toBeNull();
+  await expect(page.locator('#profile button[aria-pressed="true"]')).toHaveText('Off');
+});
+
+test('the profile sits on the round Earth: the sea surface meets the volcano at the shore', async ({ page }) => {
+  await start(page);
+  await page.evaluate(() => window.__game.setMountain('mauna-kea'));
+  await waitFramed(page, 'mauna-kea');
+  await shot(page, 'profile-sea-level');
+  // Zoom in to the coast where the flank crosses sea level (about 35 km from the axis), then to the summit.
+  await page.evaluate(() => window.__game.setView({ x: -60000 + 34600, elevM: 0, mPerPx: 20 }));
+  await page.waitForTimeout(200);
+  await shot(page, 'profile-shore');
+  await page.evaluate(() => window.__game.setView({ x: -60000, elevM: 4207, mPerPx: 5 }));
+  await page.waitForTimeout(200);
+  await expect(page.locator('#depth')).toHaveText('4,207 m above');
+  await shot(page, 'profile-summit');
+});
+
+test('creatures are hidden inside rock and ground, and reappear when the profile is off', async ({ page }) => {
+  await start(page);
+  const fish = (await page.evaluate(() => window.__game.critterPoints())).find((p) => p.speciesId === 'snailfish')!;
+  await setView(page, { elevM: fish.elevM, x: fish.x, mPerPx: 4 });
+  expect(await info(page, 'snailfish')).not.toBeNull();
+
+  // Mauna Kea's sea floor is at -6 km; the snailfish lives deeper than that, inside the ground.
+  await page.evaluate(() => window.__game.setMountain('mauna-kea'));
+  await page.waitForFunction(() => window.__game.mountainInfo() !== null);
+  await setView(page, { elevM: fish.elevM, x: fish.x, mPerPx: 4 });
+  expect(await info(page, 'snailfish')).toBeNull();
+
+  // Asking for it (from the book) takes the mountain away so it can be seen.
+  await page.evaluate((k) => window.__game.focus(k), fish.key);
+  await expect(page.locator('#card-name')).toHaveText('Mariana snailfish');
+  await expect(page.locator('#profile button[aria-pressed="true"]')).toHaveText('Off');
+  expect(await page.evaluate(() => window.__game.mountainInfo())).toBeNull();
+});
+
+test('the panel can show a mountain profile in the world', async ({ page }) => {
+  await start(page);
+  await page.locator('#peaks-btn').click();
+  await page.locator('[data-show="everest"]').click();
+  await expect(page.locator('#peaks')).toBeHidden();
+  await waitFramed(page, 'everest');
+  await expect(page.locator('#profile button[aria-pressed="true"]')).toHaveText('Everest');
 });

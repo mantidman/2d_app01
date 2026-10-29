@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { backgroundGradient, contourY, earthGeometry, sag } from '../../src/game/earth';
+import { backgroundGradient, contourY, earthGeometry, sag, worldToScreen } from '../../src/game/earth';
 import { ZONES, backgroundColorAt, COLOR_STOP_ELEVATIONS } from '../../src/game/zones';
-import { EARTH_RADIUS_M, elevToScreenY, wholeEarthMPerPx } from '../../src/game/world';
+import { EARTH_CIRCUMFERENCE_M, EARTH_RADIUS_M, elevToScreenY, wholeEarthMPerPx } from '../../src/game/world';
 
 const SIZE = { w: 1000, h: 700 };
 const at = (mPerPx: number, elevM = 0) => ({ x: 0, elevM, mPerPx });
@@ -136,5 +136,48 @@ describe('background gradient', () => {
     const seaT = (EARTH_RADIUS_M + 0) / (EARTH_RADIUS_M + earthGeometry(v, SIZE).eHi);
     const lum = (c: number) => ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
     expect(lum(colorAt(spec.stops, seaT + 1e-4))).toBeGreaterThan(lum(colorAt(spec.stops, seaT + 0.2))); // sky over space
+  });
+});
+
+describe('worldToScreen on the round Earth', () => {
+  it('puts the camera at the screen centre, wherever it has walked to', () => {
+    for (const x of [0, 5000, -90_000, 3_000_000]) {
+      const v = { x, elevM: 1234, mPerPx: 7 };
+      const p = worldToScreen(v, SIZE, x, 1234);
+      expect(p.x).toBeCloseTo(SIZE.w / 2, 6);
+      expect(p.y).toBeCloseTo(SIZE.h / 2, 6);
+    }
+  });
+
+  it('measures horizontal distance along the surface and elevation straight up', () => {
+    const v = { x: 0, elevM: 0, mPerPx: 10 };
+    const p = worldToScreen(v, SIZE, 2000, 0); // 2 km along the surface = 200 px at 10 m/px
+    expect(p.x - SIZE.w / 2).toBeCloseTo(200, 3);
+    const q = worldToScreen(v, SIZE, 0, 500); // 500 m up = 50 px up
+    expect(SIZE.h / 2 - q.y).toBeCloseTo(50, 6);
+  });
+
+  it('lets the ground fall away from the camera by the curvature, d^2 / 2R', () => {
+    const v = { x: 0, elevM: 0, mPerPx: 100 };
+    const d = 300_000; // 300 km
+    const p = worldToScreen(v, SIZE, d, 0);
+    const dropM = ((p.y - SIZE.h / 2) * 100);
+    expect(dropM).toBeCloseTo(d ** 2 / (2 * EARTH_RADIUS_M), -1); // about 7 km, to 10 m
+  });
+
+  it('agrees with the curved sea-level contour of the background', () => {
+    const v = { x: 40_000, elevM: 300, mPerPx: 50 };
+    const g = earthGeometry(v, SIZE);
+    for (const s of [-60_000, 0, 40_000, 120_000]) {
+      const p = worldToScreen(v, SIZE, v.x + s, 0);
+      expect(p.y).toBeCloseTo(contourY(v, SIZE, g, 0, p.x), 1);
+    }
+  });
+
+  it('wraps once around the planet', () => {
+    const v = { x: 0, elevM: 0, mPerPx: 10 };
+    const a = worldToScreen(v, SIZE, 1000, 0);
+    const b = worldToScreen(v, SIZE, 1000 + EARTH_CIRCUMFERENCE_M, 0);
+    expect(b.x).toBeCloseTo(a.x, 4);
   });
 });

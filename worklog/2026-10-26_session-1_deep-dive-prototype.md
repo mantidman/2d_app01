@@ -80,5 +80,13 @@ A mobile (also web and macOS) game or app, built by agents without hand-holding,
   - Mauna Kea: summit 4,205 to 4,207 m depending on source; about 10,205 to 10,210 m from base to summit (NOAA, Guinness); where the base begins is debated.
   - Everest: 8,848.86 m (2020 Nepal-China survey).
   - NOT verified: Everest's base level (5,150 m, North Base Camp, approximate), and any crust-depression or volume figure for Mauna Kea and Everest (left empty on purpose).
-- Built: `src/data/mountains.json`, `src/game/mountains.ts` (pure), `src/peaks.ts` (panel and canvas chart), summit landmarks in the world, fly-to-summit buttons, unit and e2e tests.
-- The profile widths and flank shapes are schematic (idealised curves), and the panel says so.
+- Built: `src/data/mountains.json`, `src/game/mountains.ts` (pure), `src/peaks.ts` (compare panel), summit landmarks, unit and e2e tests.
+
+### Follow-up: profile in the world (Everest and Mauna Kea only)
+
+- Request: show the mountain's side profile directly on the height/depth scale, with a toggle, true width, schematic shape, switchable between Everest and Mauna Kea; Mauna Loa dropped for now.
+- Done: `Profile: Off / Everest / Mauna Kea` control; the mountain is drawn in the world and the camera flies to frame it; the panel can also show it.
+- Architecture change this needed: `view.x` is now a true distance along the Earth's surface (wraps once round the planet) and the camera walks along the curve (`worldToScreen`); mountains are clipped to the screen before drawing (`clip.ts`); creatures inside rock or ground are hidden.
+- Widths are NOT sourced: NASA Goddard gives about 120 km for Mauna Loa's base (not used any more); for Mauna Kea 120 km is an assumption by analogy; for Everest 8.8 km is a trekking-site straight-line distance from Base Camp to the summit (unverified). Both are marked `approximate` in the data and in the UI.
+- Could not fetch Wikipedia or NASA pages from the sandbox (hosts not in the allowed list); search results were used instead. Allowing en.wikipedia.org, core2.gsfc.nasa.gov and earthobservatory.nasa.gov would let the widths be checked.
+- Real elevation profiles (from DEM data) would replace the schematic curves; that needs data access.

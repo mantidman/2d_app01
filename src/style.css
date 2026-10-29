@@ -59,3 +59,8 @@ button { font: inherit; color: var(--ui-fg); background: var(--ui-bg); border: 1
 .peak-card li { margin: 2px 0; }
 .peak-card button { margin: 6px 0; }
 .peak-card a { color: var(--ui-accent); }
+
+#profile { position: absolute; top: 118px; left: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: calc(100% - 128px); }
+#profile-label { font-size: 12px; color: var(--ui-fg); text-shadow: 0 0 3px #000; margin-right: 2px; }
+#profile button { padding: 6px 9px; font-size: 13px; }
+#profile button[aria-pressed="true"] { border-color: var(--ui-accent); background: rgba(95, 224, 208, .22); }

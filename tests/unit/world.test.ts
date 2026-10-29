@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOTTOM_M,
   DEFAULT_VIEW_WIDTH_M,
+  EARTH_CIRCUMFERENCE_M,
   EARTH_RADIUS_M,
   PULL_BACK_FROM_M_PER_PX,
   wholeEarthMPerPx,
@@ -50,7 +51,12 @@ describe('view maths', () => {
     expect(elevToScreenY({ ...view, mPerPx: 10 }, -3900, H) - elevToScreenY({ ...view, mPerPx: 10 }, -3800, H)).toBeCloseTo(10);
   });
 
-  it('wraps the horizontal column the short way round', () => {
+  it('wraps once around the whole planet', () => {
+    expect(clampView({ x: EARTH_CIRCUMFERENCE_M + 10, elevM: 0, mPerPx: 1 }).x).toBeCloseTo(10, 4);
+    expect(clampView({ x: -EARTH_CIRCUMFERENCE_M * 0.75, elevM: 0, mPerPx: 1 }).x).toBeCloseTo(EARTH_CIRCUMFERENCE_M * 0.25, 4);
+  });
+
+  it('wraps the creature column the short way round', () => {
     expect(wrapDx(10)).toBe(10);
     expect(wrapDx(WORLD_W_M - 10)).toBeCloseTo(-10);
     expect(wrapDx(-WORLD_W_M + 10)).toBeCloseTo(10);
@@ -70,7 +76,7 @@ describe('view maths', () => {
     const v = clampView({ x: 1750, elevM: 9e9, mPerPx: 1e-12 });
     expect(v.elevM).toBeCloseTo(TOP_M, 1); // a hair past the top at the finest zoom
     expect(v.mPerPx).toBe(MIN_M_PER_PX);
-    expect(v.x).toBeCloseTo(-250);
+    expect(v.x).toBeCloseTo(1750, 6); // positions are true distances along the surface now (they wrap once round the planet)
     const out = clampView({ x: 0, elevM: -9e9, mPerPx: 1e9 });
     expect(out.mPerPx).toBe(MAX_M_PER_PX);
     expect(out.elevM).toBe(-EARTH_RADIUS_M); // zoomed out you may look down to the planet's centre

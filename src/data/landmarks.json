@@ -70,11 +70,5 @@
     "name": "Mauna Kea summit",
     "elevM": 4207,
     "source": "https://www.guinnessworldrecords.com.br/world-records/tallest-mountain"
-  },
-  {
-    "id": "mauna-loa",
-    "name": "Mauna Loa summit",
-    "elevM": 4169,
-    "source": "https://www.usgs.gov/volcanoes/mauna-loa"
   }
 ]
