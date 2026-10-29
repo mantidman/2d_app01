@@ -377,3 +377,43 @@ test('the Earth button shows the whole planet and the way back down works', asyn
   await expect(page.locator('#card-name')).toBeVisible();
   expect((await view(page)).mPerPx).toBeLessThan(5);
 });
+
+test('the height profile panel compares Everest, Mauna Kea and Mauna Loa', async ({ page }) => {
+  await start(page);
+  await page.locator('#peaks-btn').click();
+  await expect(page.locator('#peaks')).toBeVisible();
+  await expect(page.locator('.peak-card')).toHaveCount(3);
+
+  // Above sea level, Everest wins; Mauna Kea only edges out Mauna Loa by a few dozen metres.
+  await expect(page.locator('#peaks-rank li.winner')).toContainText('Mount Everest: 8,849 m');
+  await expect(page.locator('#peaks-rank')).toContainText('only 38 m higher');
+  await shot(page, 'peaks-above-sea');
+
+  // From the base, Mauna Kea is the tallest mountain.
+  await page.locator('#peaks-measures button[data-measure="base-to-summit"]').click();
+  await expect(page.locator('#peaks-rank li.winner')).toContainText('Mauna Kea: 10,205 m');
+  await expect(page.locator('.peak-card.winner')).toHaveAttribute('data-id', 'mauna-kea');
+  await shot(page, 'peaks-base-to-summit');
+
+  // With the pressed-down crust only Mauna Loa has a figure.
+  await page.locator('#peaks-measures button[data-measure="with-depression"]').click();
+  await expect(page.locator('#peaks-rank li.winner')).toContainText('Mauna Loa: 17,169 m');
+  await expect(page.locator('#peaks-rank')).toContainText('No sourced figure for the others');
+  await shot(page, 'peaks-with-depression');
+});
+
+test('flying to a summit from the profile panel', async ({ page }) => {
+  await start(page);
+  await page.locator('#peaks-btn').click();
+  await page.locator('[data-fly="everest"]').click();
+  await expect(page.locator('#peaks')).toBeHidden();
+  await page.waitForFunction(() => Math.abs(window.__game.getView().elevM - 8848.86) < 0.01);
+  await expect(page.locator('#depth')).toHaveText('8,849 m above');
+  await expect(page.locator('#zone')).toHaveText('Troposphere');
+  await shot(page, 'peaks-everest-summit');
+
+  await page.locator('#peaks-btn').click();
+  await page.locator('[data-fly="mauna-loa"]').click();
+  await page.waitForFunction(() => Math.abs(window.__game.getView().elevM - 4169) < 0.01);
+  await expect(page.locator('#depth')).toHaveText('4,169 m above');
+});

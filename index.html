@@ -21,6 +21,7 @@
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
           <button id="zoom-fit" type="button" aria-label="Zoom out to the largest nearby object" title="Zoom out to the largest nearby object">&#x2922;</button>
+          <button id="peaks-btn" type="button" aria-label="Height profiles: Everest, Mauna Kea, Mauna Loa" title="Height profiles: Everest, Mauna Kea, Mauna Loa">&#x26F0;&#xFE0F;</button>
           <button id="zoom-earth" type="button" aria-label="Show the whole Earth" title="Show the whole Earth">&#x1F30D;</button>
         </div>
         <div id="minimap"><canvas id="minimap-canvas" aria-label="Overview map: click to jump"></canvas></div>
@@ -31,6 +32,16 @@
           <div id="card-range"></div>
           <p id="card-fact"></p>
         </div>
+      </div>
+      <div id="peaks" hidden>
+        <div id="peaks-head"><h1>Height profiles</h1><button id="peaks-close" type="button">Close</button></div>
+        <p>How tall is a mountain? It depends on where you start measuring.</p>
+        <div id="peaks-measures"></div>
+        <p id="peaks-blurb"></p>
+        <canvas id="peaks-canvas" aria-label="Profiles of Mount Everest, Mauna Kea and Mauna Loa on one vertical scale"></canvas>
+        <p class="peak-note">Heights are sourced and drawn on one true vertical scale. Widths and flank shapes are schematic and not to scale.</p>
+        <ol id="peaks-rank"></ol>
+        <div id="peaks-cards"></div>
       </div>
       <div id="book" hidden>
         <div id="book-head"><h1>Collection</h1><button id="book-close" type="button">Close</button></div>

@@ -71,3 +71,14 @@ A mobile (also web and macOS) game or app, built by agents without hand-holding,
 - Is the 1 km wide creature column and the 1.5 km "nearby" radius right?
 - Next work: deploy to GitHub Pages for phone testing; Capacitor Android/iOS wrapper; much more content (40+ sea, 30+ sky/object entries) with fact-checked sources; quiz mode; sound and haptics.
 - Facts and sizes come from Wikipedia and NOAA links and must be fact-checked before any public release.
+
+## Addendum (2026-10-29): height profiles, branch `improvement3`
+
+- Request: show the height profile of Mauna Kea, Mauna Loa and Mount Everest ("does this make sense?"). Yes: it fits the height theme and shows that "height" depends on where you measure.
+- Figures checked with web search before building (Wikipedia is not reachable from the cloud sandbox, so USGS, NOAA, Guinness and news reports were used):
+  - Mauna Loa: 4,169 m; volume at least 75,000 km3; submarine flanks about 5 km to the sea floor; crust pressed down about 8 km; about 17 km above its base (USGS).
+  - Mauna Kea: summit 4,205 to 4,207 m depending on source; about 10,205 to 10,210 m from base to summit (NOAA, Guinness); where the base begins is debated.
+  - Everest: 8,848.86 m (2020 Nepal-China survey).
+  - NOT verified: Everest's base level (5,150 m, North Base Camp, approximate), and any crust-depression or volume figure for Mauna Kea and Everest (left empty on purpose).
+- Built: `src/data/mountains.json`, `src/game/mountains.ts` (pure), `src/peaks.ts` (panel and canvas chart), summit landmarks in the world, fly-to-summit buttons, unit and e2e tests.
+- The profile widths and flank shapes are schematic (idealised curves), and the panel says so.

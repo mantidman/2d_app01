@@ -266,6 +266,11 @@ export class DiveScene extends Phaser.Scene {
     this.startFly(() => (follow ? clampView({ ...zoomed, x: this.view.x + wrapDx(follow.inst.x - this.view.x), elevM: follow.inst.elevM }) : zoomed));
   }
 
+  /** Fly to a height on the world's axis at the opening zoom (used by the mountain profiles). */
+  flyToElevation(elevM: number): void {
+    this.flyTo({ x: 0, elevM, mPerPx: defaultMPerPx(this.size) });
+  }
+
   /** Fly out until the whole planet is on screen, centred on its middle. */
   showWholeEarth(): void {
     this.flyTo({ x: 0, elevM: -EARTH_RADIUS_M, mPerPx: wholeEarthMPerPx(this.size) });

@@ -11,7 +11,8 @@ A 2D discovery game about **height and depth**. Travel from low Earth orbit (600
 - **Zoom out and the Earth appears.** The horizon bends gradually; after a while the camera pulls back and the whole planet is visible with its layers (atmosphere, sea, crust, mantle, outer core, inner core) and a labelled radius line. The globe button jumps there directly.
 - **Minimap on the right (always visible).** Click to jump to a height or depth, drag to scrub, click a dot to fly to that creature. It never zooms; only the world view does.
 - **Collection book.** Every entry is clickable and flies you to the nearest one of that species.
-- **Important levels are marked:** sea level, Mount Everest, Armstrong limit, Kármán line (edge of space), ISS orbit, average ocean depth, Challenger Deep, core-mantle boundary, the Earth's centre, plus zone edges (sunlit, twilight, midnight, abyssal, hadal, atmosphere layers, interior layers).
+- **Height profiles (⛰).** Compare Mount Everest, Mauna Kea and Mauna Loa on one true vertical scale, measured three ways: above sea level (Everest wins; Mauna Kea's summit is only about 38 m higher than Mauna Loa's), base to summit (Mauna Kea, about 10.2 km), and including the crust pressed down under the volcano (Mauna Loa, about 17 km). Fly to any summit from the panel. Heights come from USGS, NOAA/Guinness and the 2020 Nepal-China survey; the profile shapes are schematic.
+- **Important levels are marked:** sea level, Mount Everest, Mauna Kea and Mauna Loa summits, Armstrong limit, Kármán line (edge of space), ISS orbit, average ocean depth, Challenger Deep, core-mantle boundary, the Earth's centre, plus zone edges (sunlit, twilight, midnight, abyssal, hadal, atmosphere layers, interior layers).
 
 Controls: drag or arrow keys / WASD to move, mouse wheel / pinch / `Q` `E` / the +/- buttons to zoom, `⤢` to zoom out to the largest nearby object, 🌍 for the whole Earth.
 

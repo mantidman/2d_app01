@@ -4,6 +4,7 @@ import { Progress } from './game/progress';
 import { SPECIES } from './game/species';
 import { Size, View } from './game/world';
 import { createUi } from './ui';
+import { createPeaks } from './peaks';
 
 const progress = new Progress();
 
@@ -20,6 +21,8 @@ const ui = createUi(progress, {
   showEarth: () => scene()?.showWholeEarth(),
   focusSpecies: (id) => scene()?.focusSpecies(id),
 });
+
+createPeaks({ flyToElevation: (m) => scene()?.flyToElevation(m) });
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
